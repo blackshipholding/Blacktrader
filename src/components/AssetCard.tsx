@@ -21,7 +21,7 @@ import { waveCaption } from "./waveText";
 import { ConfirmSheet } from "./Sheet";
 import { MarketNote } from "./DepotPicker";
 import { StatusPill } from "./StatusPill";
-import { ADD } from "@/lib/client/account";
+import { ACCOUNT, ADD, belowMinCapital } from "@/lib/client/account";
 import { GAUGE_PREFIX, NeutralGauge } from "./NeutralGauge";
 import { entryStatus, StatusLine } from "./StatusLine";
 
@@ -82,6 +82,7 @@ export function AssetCard({
   onOpen,
   onRemove,
   hideOpen,
+  tipOnly,
 }: {
   asset: ResolvedAsset;
   /** Ergebnis von Blacktrader (fehlt, solange noch gerechnet wird) */
@@ -94,6 +95,8 @@ export function AssetCard({
   onRemove?: () => void;
   /** In der Detailansicht: ohne „Analyse ansehen“ (die Analyse steht darunter) */
   hideOpen?: boolean;
+  /** Buy & Hold: nur Tipps von Shipmaster – keine Knöpfe, die ins Blacktrader-Konto übernehmen */
+  tipOnly?: boolean;
 }) {
   const [confirm, setConfirm] = useState<null | "trade" | "longterm" | "nachkauf">(null);
   const [showPast, setShowPast] = useState(false);
@@ -128,6 +131,8 @@ export function AssetCard({
   const mv = entry ? miniView(entry, lt ? undefined : res?.elliott.best, lt ? entry.ltHorizon : b?.horizon ?? view.h, view.candles) : null;
   const ltMini = mv?.longterm ?? null;
   const wave = mv?.best;
+  // Shipmaster 0.1: empfohlener Betrag (1. Kauf 10 %, bei bestehender blauer Position Nachkauf 2 % vom Kontostand)
+  const shipAmount = belowMinCapital() || b?.color === "rot" || b?.color === "gelb" ? undefined : b?.color === "blau" && held ? ADD.stake : ACCOUNT.stake;
 
   const myLine = (() => {
     if (!myLong) return null;
@@ -204,7 +209,7 @@ export function AssetCard({
               </div>
             </div>
           ) : (
-            <StatusLine s={entryStatus(b, wave, cur)}>
+            <StatusLine s={entryStatus(b, wave, cur, shipAmount)}>
               <span className="mt-1 block text-[14px]">{b.waitFor ?? b.reason}</span>
             </StatusLine>
           )}
@@ -213,11 +218,11 @@ export function AssetCard({
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
           {(b.color === "gruen" || b.color === "rot") && (
-            <StatusLine s={entryStatus(b, wave, cur)}>
+            <StatusLine s={entryStatus(b, wave, cur, shipAmount)}>
               <span className="mt-1 block text-[14px] opacity-90">{b.reason}</span>
             </StatusLine>
           )}
-          {b.color === "blau" && <StatusLine s={entryStatus(b, wave, cur)} />}
+          {b.color === "blau" && <StatusLine s={entryStatus(b, wave, cur, shipAmount)} />}
 
           {expert && res && (
             <div className="rounded-xl border border-gold/20 bg-black/30 px-3 py-2 text-[13px] text-stone-300">
@@ -299,7 +304,9 @@ export function AssetCard({
             Analyse ansehen
           </button>
         )}
-        {weak ? null : plan && b?.res && !tradeOpen && !held ? (
+        {weak || tipOnly ? null : isShort ? (
+          <p className="flex-1 rounded-xl bg-red-500/10 px-3 py-2 text-center text-[14px] text-red-200">Nur Info – Blacktrader handelt keine Shorts</p>
+        ) : plan && b?.res && !tradeOpen && !held ? (
           <button className="btn-primary flex-1" onClick={() => setConfirm("trade")}>
             Als Papier-Trade übernehmen
           </button>

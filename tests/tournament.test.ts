@@ -24,8 +24,21 @@ const T = (sym: string, d0: number, d1: number, r: number): PoolTrade => ({ sym,
 const flat = () => 100;
 
 describe("Turnier: Regeln", () => {
-  it("8.000 € Start (wie das Depot), 5 Jahre, 50 Versuche, 15 Gegner (16 Teilnehmer), KESt 27,5 %", () => {
-    expect(RULES).toMatchObject({ start: 8000, years: 5, reps: 50, stake: 500, tax: 0.275 });
+  it("Shipmaster 0.1: 10.000 € Start, 10 % je Kauf, 2 × 2 % Nachkauf, 5 Jahre, 50 Zeiträume; 15 bisherige Gegner + 13 neue im Pool", async () => {
+    expect(RULES).toMatchObject({ start: 10000, years: 5, reps: 50, first: 0.1, add: 0.02, addMax: 2, tax: 0.275 });
+    const { OPPONENT_POOL, OPPONENTS_PER_TEST } = await import("../src/lib/trainer/tournamentRun");
+    const { rotateOpponents } = await import("../src/lib/trainer/hardtest");
+    expect(OPPONENT_POOL).toHaveLength(28);
+    expect(new Set(OPPONENT_POOL.map((o) => o.id)).size).toBe(28);
+    expect(OPPONENTS_PER_TEST).toBe(9);
+    // je Turnier 9 verschiedene; nach 4 Turnieren war jeder dran
+    const seen = new Set<string>();
+    for (let t = 0; t < 4; t++) {
+      const pick = rotateOpponents(OPPONENT_POOL, 9, t);
+      expect(new Set(pick.map((o) => o.id)).size).toBe(9);
+      pick.forEach((o) => seen.add(o.id));
+    }
+    expect(seen.size).toBe(28);
     expect(OPPONENTS).toHaveLength(15);
     for (const g of ["bot", "bank", "strategie"]) expect(OPPONENTS.filter((o) => o.group === g)).toHaveLength(5);
     expect(OPPONENTS.map((o) => o.id)).not.toContain("rsi");
@@ -33,22 +46,25 @@ describe("Turnier: Regeln", () => {
   });
   it("ohne Trades bleibt das Geld liegen", () => {
     const r = runWindow([], W(1_500_000_000), flat);
-    expect(r.end).toBe(8000);
+    expect(r.end).toBe(10000);
     expect(r.trades).toBe(0);
   });
   it("KESt sofort bei jedem Gewinn: 100 € → 110 € ergibt 2,75 € KESt", () => {
-    // 500 € Einsatz, +10 %: 50 € Kursgewinn → KESt 13,75 € (Spesen sind in Österreich nicht abzugsfähig)
+    // 1.000 € Einsatz (10 % von 10.000 €), +10 %: 100 € Kursgewinn → KESt 27,50 € (Spesen nicht abzugsfähig)
     const r = runWindow([T("A", 10, 40, 10)], W(1_500_000_000), flat);
-    expect(r.tax).toBeCloseTo(50 * 0.275, 6);
+    expect(r.tax).toBeCloseTo(100 * 0.275, 6);
     expect(10 * 0.275).toBeCloseTo(2.75, 6);
   });
   it("Gewinn wird nach 7,90 € Gebühr je Order und 27,5 % KESt gerechnet", () => {
-    // ein Trade +10 % auf 500 €: 50 € Gewinn, 2 × 7,90 € Gebühr, 13,75 € KESt
+    // ein Trade +10 % auf 1.000 €: 100 € Gewinn, 2 × 7,90 € Gebühr, 27,50 € KESt
     const r = runWindow([T("A", 10, 40, 10)], W(1_500_000_000), flat);
     expect(r.trades).toBe(1);
     expect(r.fees).toBeCloseTo(15.8, 6);
-    expect(r.tax).toBeCloseTo(50 * 0.275, 6);
-    expect(r.profit).toBeCloseTo(50 - 15.8 - 50 * 0.275, 6);
+    expect(r.tax).toBeCloseTo(100 * 0.275, 6);
+    expect(r.profit).toBeCloseTo(100 - 15.8 - 100 * 0.275, 6);
+    // größeres Depot: dieselbe Regel, 10 % von 50.000 €
+    const big = runWindow([T("A", 10, 40, 10)], { ...W(1_500_000_000), cap: 50000 }, flat);
+    expect(big.tax).toBeCloseTo(500 * 0.275, 6);
   });
   it("Verlust im selben Jahr holt bezahlte KESt zurück (Verlustausgleich), nicht über das Jahr hinaus", () => {
     const start = Date.UTC(2018, 0, 2) / 1000;
@@ -57,19 +73,23 @@ describe("Turnier: Regeln", () => {
     // Gewinn im Februar, Verlust im März desselben Jahres → KESt zurück
     expect(runWindow([t("A", 10, 40, 10), t("B", 50, 80, -10)], W(start), flat).tax).toBeCloseTo(0, 6);
     // Gewinn 2018, Verlust 2019 → keine Rückzahlung
-    expect(runWindow([t("A", 10, 40, 10), t("B", 400, 430, -10)], W(start), flat).tax).toBeCloseTo(50 * 0.275, 6);
+    expect(runWindow([t("A", 10, 40, 10), t("B", 400, 430, -10)], W(start), flat).tax).toBeCloseTo(100 * 0.275, 6);
   });
-  it("nur 500 € je Trade (+ 7,90 € Gebühr) und nur mit genug Geld: höchstens 15 Trades gleichzeitig", () => {
+  it("10 % vom Kontostand je Trade und nur mit genug Geld: rund 10 Trades gleichzeitig", () => {
     const many = Array.from({ length: 20 }, (_, i) => T(`S${i}`, 10, 100, 1));
-    expect(runWindow(many, W(1_500_000_000), flat).trades).toBe(15);
+    const n = runWindow(many, W(1_500_000_000), flat).trades;
+    expect(n).toBeGreaterThanOrEqual(9);
+    expect(n).toBeLessThanOrEqual(10);
   });
   it("wer kein Geld mehr hat, scheidet aus", () => {
-    const crash = Array.from({ length: 30 }, (_, i) => T(`S${i % 10}`, 10 + i * 40, 30 + i * 40, -95));
+    // Käufe werden mit dem Konto kleiner (10 % vom Kontostand) – irgendwann reicht es nicht mehr für Einsatz + Gebühr
+    const crash = Array.from({ length: 300 }, (_, i) => T(`S${i % 10}`, 10 + i * 5, 12 + i * 5, -95));
     expect(runWindow(crash, W(1_500_000_000), flat).broke).toBe(true);
   });
   it("offene Positionen werden am Ende zum Tageskurs bewertet", () => {
     const r = runWindow([T("A", 10, 5000, 50)], W(1_500_000_000), () => 120);
-    expect(r.end).toBeCloseTo(8000 + 100 - 15.8 - 100 * 0.275, 6);
+    // 1.000 € Einsatz, Kurs 100 → 120: +200 € Gewinn
+    expect(r.end).toBeCloseTo(10000 + 200 - 15.8 - 200 * 0.275, 6);
   });
   it("50 Zeiträume à 5 Jahre mit Marktlage", () => {
     const spx = series(15 * 252, 3, 0.0004);
@@ -84,7 +104,8 @@ describe("Turnier: Regeln", () => {
     const bad = summarizeRuns("x", "Schlecht", "", [{ w, r: runWindow([T("A", 10, 40, -20)], w, flat) }]);
     const list = rank([bad, good]);
     expect(list[0].name).toBe("Blacktrader");
-    expect(cagr(8000)).toBe(0);
+    expect(cagr(10000)).toBe(0);
+    expect(cagr(50000, 50000)).toBe(0);
     const lines = reportLines({ v: 2, at: "x", rules: { ...RULES }, ranking: list, scenarioCount: {} });
     expect(lines[0]).toContain("Platz 1 von 2");
     expect(lines[0]).toContain("Trades in 5 Jahren");
@@ -188,13 +209,13 @@ describe("Vergleich: echter ETF", () => {
 });
 
 describe("Blau-Regel (wieder entfernbar)", () => {
-  it("gilt für Chancen und Turnier gleich: Ungültig höchstens 40 %, Chance mindestens 40 %", async () => {
+  it("Shipmaster 0.1: Blau-Regel ausgeschaltet (Härtetest), Werte bleiben für ein Wiedereinschalten erhalten", async () => {
     const { passesBlueRule, BLUE_RULE } = await import("../src/lib/analysis/potential");
-    expect(BLUE_RULE.enabled).toBe(true);
+    expect(BLUE_RULE.enabled).toBe(false);
+    expect(BLUE_RULE).toMatchObject({ maxRiskPct: 40, minChancePct: 40 });
     expect(passesBlueRule(60, 20)).toBe(true);
-    expect(passesBlueRule(30, 20)).toBe(false);
-    expect(passesBlueRule(60, 50)).toBe(false);
-    expect(passesBlueRule(undefined, 20)).toBe(false);
+    expect(passesBlueRule(30, 20)).toBe(true);
+    expect(passesBlueRule(60, 50)).toBe(true);
   });
   it("ausgeschlossene blaue Trades werden nicht gehandelt; die Auswertung meldet, wenn es ohne Regel besser wäre", async () => {
     const { activePool } = await import("../src/lib/trainer/tournamentRun");

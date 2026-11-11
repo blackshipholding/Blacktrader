@@ -42,9 +42,27 @@ export interface VolumeRsiOptions {
   relVolHigh: number;
   relVolBreakout: number;
   relVolLow: number;
+  /** Anteil des Momentum-Messers am Volumen/RSI-Teil (0 = aus; lernbar, Start 0 – Shipmaster 0.1) */
+  momentumWeight?: number;
 }
 
-export const DEFAULT_VOLUME_OPTIONS: VolumeRsiOptions = { rsiOverbought: 70, rsiOversold: 30, divergenceRecentBars: 20, relVolHigh: 1.5, relVolBreakout: 1.3, relVolLow: 0.6 };
+export const DEFAULT_VOLUME_OPTIONS: VolumeRsiOptions = { rsiOverbought: 70, rsiOversold: 30, divergenceRecentBars: 20, relVolHigh: 1.5, relVolBreakout: 1.3, relVolLow: 0.6, momentumWeight: 0 };
+
+/**
+ * Momentum-Messer: Kursänderung der letzten 12 Monate (nur Vergangenheit) → Beitrag −1 … +1 (±30 % = voll).
+ * Im Härtetest war „12 Monate stärker“ der beste Momentum-Indikator; als fester Filter nicht verlässlich – deshalb nur
+ * als lernbarer Anteil (Trainer entscheidet mit Härtetest-Prüfung B8).
+ */
+export function momentum12(candles: Candle[]): number | null {
+  if (candles.length < 30) return null;
+  const last = candles[candles.length - 1];
+  const target = last.time - 365 * 86400;
+  if (candles[0].time > target) return null;
+  let i = candles.length - 1;
+  while (i > 0 && candles[i].time > target) i--;
+  const past = candles[i].close;
+  return past > 0 ? last.close / past - 1 : null;
+}
 
 export function rsiContribution(r: number, ob = 70, os = 30): number {
   if (ob !== 70 || os !== 30) {
@@ -157,6 +175,10 @@ export function analyzeVolumeRsi(candles: Candle[], count?: WaveCount, vo: Volum
     findings.push("Keine Volumendaten verfügbar – Bewertung nur auf RSI-Basis.");
   }
 
-  const score = Math.round(50 + 50 * clamp(sum / 1.5, -1, 1));
+  const base = 50 + 50 * clamp(sum / 1.5, -1, 1);
+  const mw = clamp(vo.momentumWeight ?? 0, 0, 0.5);
+  const mom = mw > 0 ? momentum12(candles) : null;
+  if (mom != null) findings.push(`Momentum: ${mom >= 0 ? "+" : ""}${(mom * 100).toFixed(0)} % in 12 Monaten.`);
+  const score = Math.round(mom == null ? base : (1 - mw) * base + mw * (50 + 50 * clamp(mom / 0.3, -1, 1)));
   return { score, rsi: last, rsiState, divergences: divs, relVolume: relVol, obvTrend, breakout, waveVolumeConfirmed, profile, findings, hasVolume };
 }

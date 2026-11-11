@@ -41,9 +41,18 @@ export interface PoolTrade {
 
 export type { BotSeries as Series } from "./opponents";
 
-/** fee: Gebühr je Order in € (flatex 7,90 €); KESt in Österreich auf den Gewinn ohne Abzug der Spesen */
-/** addMax/addStake: Nachkauf nur bei Blau, höchstens 4× zu je 250 € (getestet: weniger Risiko, Klumpenrisiko begrenzt) */
-export const RULES = { start: 8000, years: 5, reps: 50, stake: 500, fee: 7.9, tax: 0.275, rounds: 5, addMax: 4, addStake: 250 } as const;
+/**
+ * Shipmaster 0.1 (11.11.2026, fest – Regelwerk A): 1. Kauf 10 % vom Kontostand (freies Geld + offene Positionen zum
+ * Kaufpreis), Nachkauf nur bei Blau höchstens 2 × 2 %; 7,90 € je Order (flatex); KESt in Österreich auf den Gewinn ohne
+ * Abzug der Spesen. Jeder Zeitraum wird mit mehreren Depotgrößen gespielt (CAPS, wie im Härtetest: viele Kunden ab
+ * 10.000 €). stake/addStake = Beträge beim Standard-Startkapital (Anzeige).
+ */
+export const RULES = { start: 10000, years: 5, reps: 50, first: 0.1, add: 0.02, stake: 1000, fee: 7.9, tax: 0.275, rounds: 5, addMax: 2, addStake: 200 } as const;
+/** Depotgrößen im Turnier (Kunden je Zeitraum) – alle Teilnehmer bekommen genau dasselbe Geld */
+export const TOURNEY_CAPS = [10000, 25000, 50000, 100000, 250000] as const;
+/** 1. Kauf und Nachkauf für einen Kontostand (wie im Depot, account.ts) */
+export const shipStake = (value: number) => Math.round(Math.max(0, value) * RULES.first);
+export const shipAdd = (value: number) => Math.round(Math.max(0, value) * RULES.add);
 
 // ---------------------------------------------------------------------------------------------
 // Marktlage aus dem S&P 500 (nur Vergangenheit)
@@ -78,7 +87,14 @@ export interface Window {
   from: number;
   to: number;
   scenario: Scenario;
+  /** Startkapital dieses Kunden (fehlt: RULES.start) */
+  cap?: number;
+  /** Nummer des Zeitraums (gleich für alle Depotgrößen) */
+  k?: number;
 }
+
+/** Jeden Zeitraum mit allen Depotgrößen spielen (Kunden) */
+export const withCaps = (ws: Window[], caps: readonly number[] = TOURNEY_CAPS): Window[] => ws.flatMap((w, k) => caps.map((cap) => ({ ...w, cap, k })));
 
 export interface RunResult {
   end: number;
@@ -92,6 +108,15 @@ export interface RunResult {
   low: number;
   /** ausgeschieden (kein Geld mehr) */
   broke: boolean;
+  /** Startkapital */
+  cap?: number;
+}
+
+/** Stress-Test: höhere Gebühr und schlechtere Kurse beim Kauf und Verkauf (Härtetest B8) */
+export interface RunOpts {
+  fee?: number;
+  /** z. B. 0.005 = 0,5 % schlechter beim Kauf und beim Verkauf */
+  slip?: number;
 }
 
 const YEAR = 365.25 * 86400;
@@ -101,8 +126,13 @@ const yearOf = (t: number) => new Date(t * 1000).getUTCFullYear();
  * Spielt die Trades eines Teilnehmers im Zeitraum chronologisch durch.
  * `priceAt(sym, t)` liefert den letzten Schlusskurs bis t (für offene Positionen am Ende).
  */
-export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t: number) => number | null): RunResult {
-  type Ev = { t: number; kind: 0 | 1; i: number };
+type Ev = { t: number; kind: 0 | 1; i: number };
+/** Trades und Reihenfolge der Ereignisse eines Zeitraums – gleich für alle Depotgrößen (einmal rechnen, oft spielen) */
+export interface PreparedWindow {
+  trades: PoolTrade[];
+  ev: Ev[];
+}
+export function prepareWindow(pool: PoolTrade[], w: Window): PreparedWindow {
   const trades = pool.filter((p) => p.entry >= w.from && p.entry < w.to);
   const ev: Ev[] = [];
   trades.forEach((p, i) => {
@@ -110,8 +140,18 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
     if (p.exit <= w.to) ev.push({ t: p.exit, kind: 0, i });
   });
   // Ausstiege vor Einstiegen am selben Tag; sonst nach Zeit und Wert (eindeutig, für alle gleich)
-  ev.sort((a, b) => a.t - b.t || a.kind - b.kind || trades[a.i].sym.localeCompare(trades[b.i].sym));
-  let cash: number = RULES.start;
+  ev.sort((a, b) => a.t - b.t || a.kind - b.kind || (trades[a.i].sym < trades[b.i].sym ? -1 : trades[a.i].sym > trades[b.i].sym ? 1 : 0));
+  return { trades, ev };
+}
+
+export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t: number) => number | null, opts: RunOpts = {}, prepared?: PreparedWindow): RunResult {
+  const cap = w.cap ?? RULES.start;
+  const FEE = opts.fee ?? RULES.fee;
+  const slip = opts.slip ?? 0;
+  const adj = (r: number) => (slip ? ((1 + r / 100) * (1 - slip)) / (1 + slip) - 1 : r / 100) * 100;
+  const { trades, ev } = prepared ?? prepareWindow(pool, w);
+  let cash: number = cap;
+  let invested = 0;
   const open = new Map<number, number>(); // Trade-Index → Einsatz
   const perSym = new Map<string, number>(); // offene Positionen je Wert (1 + Nachkäufe)
   const kest = new KestYear(RULES.tax);
@@ -124,10 +164,11 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
   const close = (i: number, r: number, t: number) => {
     const stake = open.get(i)!;
     // KESt auf den Kursgewinn – Spesen sind in Österreich steuerlich nicht abzugsfähig
-    const g = (stake * r) / 100;
-    cash += stake + g - RULES.fee;
-    fees += RULES.fee;
-    if (g - 2 * RULES.fee > 0) wins++;
+    const g = (stake * adj(r)) / 100;
+    cash += stake + g - FEE;
+    fees += FEE;
+    invested -= stake;
+    if (g - 2 * FEE > 0) wins++;
     // sofort bei Gewinn, Verlusttopf im Kalenderjahr (analysis/kest.ts)
     const k = kest.settle(g, yearOf(t));
     cash -= k;
@@ -140,24 +181,23 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
       if (open.has(e.i)) close(e.i, trades[e.i].r, e.t);
     } else if (!broke) {
       const p = trades[e.i];
-      // Je Wert eine Position; Nachkauf nur bei Blau (höchstens addMax × addStake)
+      // Je Wert eine Position; Nachkauf nur bei Blau (höchstens addMax × 2 %); Beträge vom Kontostand (Shipmaster 0.1)
       const have = perSym.get(p.sym) ?? 0;
       if (have > 0 && (p.color !== "blau" || have > RULES.addMax)) continue;
-      const stake = have > 0 ? RULES.addStake : RULES.stake;
-      if (cash < stake + RULES.fee) {
+      const stake = have > 0 ? shipAdd(cash + invested) : shipStake(cash + invested);
+      if (!(stake > 0) || cash < stake + FEE) {
         // ohne Geld und ohne offene Position: ausgeschieden
         if (open.size === 0) broke = true;
         continue;
       }
-      cash -= stake + RULES.fee;
-      fees += RULES.fee;
+      cash -= stake + FEE;
+      fees += FEE;
+      invested += stake;
       open.set(e.i, stake);
       perSym.set(p.sym, have + 1);
       taken++;
     }
-    let eq = cash;
-    for (const v of open.values()) eq += v;
-    low = Math.min(low, eq);
+    low = Math.min(low, cash + invested);
   }
   // Ende: offene Positionen zum Tageskurs bewerten, verkaufen und versteuern
   for (const i of [...open.keys()]) {
@@ -165,8 +205,8 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
     const now = priceAt(p.sym, w.to);
     close(i, now && p.px ? (p.short ? (1 - now / p.px) * 100 : (now / p.px - 1) * 100) : 0, w.to);
   }
-  if (cash < RULES.stake + RULES.fee) broke = true;
-  return { end: cash, profit: cash - RULES.start, tax, fees, trades: taken, wins, low: Math.min(low, cash), broke };
+  if (cash < shipAdd(cash) + FEE) broke = true;
+  return { end: cash, profit: cash - cap, tax, fees, trades: taken, wins, low: Math.min(low, cash), broke, cap };
 }
 
 /**
@@ -175,6 +215,7 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
  * Die laufende Besteuerung thesaurierender Fonds in Österreich (ausschüttungsgleiche Erträge) ist nicht abgebildet.
  */
 export function benchmarkRun(etf: Candle[], w: Window): RunResult {
+  const cap = w.cap ?? RULES.start;
   const at = (t: number) => {
     let lo = 0;
     let hi = etf.length - 1;
@@ -187,11 +228,11 @@ export function benchmarkRun(etf: Candle[], w: Window): RunResult {
   };
   const a = at(w.from);
   const b = at(w.to);
-  const inv = RULES.start - RULES.fee;
+  const inv = cap - RULES.fee;
   const g = inv * (b / a - 1);
   const tax = Math.max(0, g) * RULES.tax;
   const end = inv + g - RULES.fee - tax;
-  return { end, profit: end - RULES.start, tax, fees: 2 * RULES.fee, trades: 1, wins: g > 2 * RULES.fee ? 1 : 0, low: Math.min(RULES.start, end), broke: false };
+  return { end, profit: end - cap, tax, fees: 2 * RULES.fee, trades: 1, wins: g > 2 * RULES.fee ? 1 : 0, low: Math.min(cap, end), broke: false, cap };
 }
 
 /** 50 Zeiträume à 5 Jahre (gleichmäßig verteilte Startzeitpunkte) mit ihrer Marktlage. */
@@ -221,7 +262,8 @@ export function makeWindows(spx: Candle[], from: number, reps: number = RULES.re
 }
 
 const mean = (x: number[]) => (x.length ? x.reduce((a, b) => a + b, 0) / x.length : 0);
-export const cagr = (end: number) => (end > 0 ? Math.pow(end / RULES.start, 1 / RULES.years) - 1 : -1);
+export const cagr = (end: number, cap: number = RULES.start) => (end > 0 ? Math.pow(end / cap, 1 / RULES.years) - 1 : -1);
+const cagrOf = (x: { r: RunResult; w: Window }) => cagr(x.r.end, x.r.cap ?? x.w.cap ?? RULES.start);
 
 export interface ContestantResult {
   id: string;
@@ -251,11 +293,11 @@ export interface ContestantResult {
 
 /** Fasst die Versuche eines Teilnehmers zusammen. */
 export function summarizeRuns(id: string, name: string, desc: string, runs: { w: Window; r: RunResult }[]): ContestantResult {
-  const py = runs.map((x) => cagr(x.r.end));
+  const py = runs.map(cagrOf);
   const byScenario: ContestantResult["byScenario"] = {};
   for (const s of SCENARIOS) {
     const xs = runs.filter((x) => x.w.scenario === s);
-    if (xs.length) byScenario[s] = { n: xs.length, avgPerYear: mean(xs.map((x) => cagr(x.r.end))) };
+    if (xs.length) byScenario[s] = { n: xs.length, avgPerYear: mean(xs.map(cagrOf)) };
   }
   const trades = runs.reduce((a, x) => a + x.r.trades, 0);
   const wins = runs.reduce((a, x) => a + x.r.wins, 0);
@@ -314,12 +356,15 @@ export interface TournamentReport {
   opponents?: { id: string; name: string; params: Record<string, number>; label: string; origin: "champion" | "start" | "neu"; tried: number }[];
   /** Regelwerk B7: Prüfung eines neuen Lern-Stands im Turnier */
   b7?: { checked: number; rejected: number; notes: string[] };
+  /** Härtetest (B8) mit dem Endstand: Kunden zum Lernen und gesperrte letzte 2 Jahre (Schlusskontrolle) */
+  hardtest?: { customers: number; learn: { avg: number; lossShare: number; worst5: number; bear: number }; locked: { avg: number; lossShare: number; n: number } | null } | null;
   note?: string;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Auswertung in Worten
 
+const pct0 = (x: number) => `${Math.round(x * 100)} %`;
 export const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1).replace(".", ",")} %`;
 export const eur0 = (x: number) => `${x < 0 ? "−" : ""}${Math.round(Math.abs(x)).toLocaleString("de-DE")} €`;
 
@@ -372,6 +417,11 @@ export function reportItems(rep: TournamentReport, previous?: TournamentReport |
     const kept = rep.opponents.filter((o) => o.origin === "champion").length;
     const fresh = rep.opponents.filter((o) => o.origin === "neu").length;
     out.push({ label: "Gegner-Varianten", value: `${kept} Champions · ${fresh} neue Varianten`, text: "ausgewählt auf eigenen Zeiträumen, nicht gegen Blacktrader" });
+  }
+  if (rep.hardtest) {
+    const h = rep.hardtest;
+    out.push({ label: "Härtetest", value: `${pa(h.learn.avg)} · ${pct0(h.learn.lossShare)} Kunden mit Verlust`, text: `${h.customers.toLocaleString("de-DE")} Kunden (10.000 € – 1 Mio. €, Shipmaster 0.1) · bärisch ${pa(h.learn.bear)} · schlechteste 5 % ${pa(h.learn.worst5)}`, tone: h.learn.avg > 0 ? "good" : "warn" });
+    if (h.locked) out.push({ label: "Schlusskontrolle", value: pa(h.locked.avg), text: `gesperrte letzte 2 Jahre (beim Lernen nie gesehen) · ${pct0(h.locked.lossShare)} mit Verlust`, tone: h.locked.avg >= h.learn.avg - 0.03 ? "good" : "warn" });
   }
   if (rep.b7?.checked) out.push({ label: "Regelwerk B7", value: `${rep.b7.checked} geprüft · ${rep.b7.rejected} abgelehnt`, text: "neue Lern-Stände im Turnier (schlechter oder ausgeschieden = abgelehnt)" });
   // Nur vergleichen, wenn die Regeln gleich sind (z. B. nicht 5.000 € gegen 8.000 € Startkapital)

@@ -16,31 +16,31 @@ describe("Update: ein Signal, Nachkauf nur Blau, Finanz-Prüfung", () => {
     expect(suppressedBy("crypto", "1d", 550, act)).toBe(false);
   });
 
-  it("Turnier: Nachkauf nur bei Blau, höchstens 4 × 250 €; grünes Zweitsignal desselben Werts wird nicht gehandelt", () => {
-    expect(RULES).toMatchObject({ addMax: 4, addStake: 250 });
+  it("Turnier (Shipmaster 0.1): Nachkauf nur bei Blau, höchstens 2 × 2 %; grünes Zweitsignal desselben Werts wird nicht gehandelt", () => {
+    expect(RULES).toMatchObject({ addMax: 2, add: 0.02 });
     const w = { from: 0, to: 1000 * D, scenario: "bullisch" as const };
     const flat = () => 100;
     const lot = (entry: number, color: PoolTrade["color"]): PoolTrade => ({ sym: "X", entry: entry * D, exit: 900 * D, r: 0, px: 100, color });
     const blue = runWindow([lot(1, "blau"), ...[2, 3, 4, 5, 6].map((d) => lot(d, "blau"))], w, flat);
-    expect(blue.trades).toBe(5); // 1 + 4 Nachkäufe
-    expect(blue.fees).toBeCloseTo(10 * RULES.fee, 6);
+    expect(blue.trades).toBe(3); // 1 + 2 Nachkäufe
+    expect(blue.fees).toBeCloseTo(6 * RULES.fee, 6);
     const green = runWindow([lot(1, "gruen"), lot(2, "gruen")], w, flat);
     expect(green.trades).toBe(1);
   });
 
-  it("EchoChart-Konto: Nachkauf nur Blau mit 250 €", () => {
+  it("EchoChart-Konto (Shipmaster 0.1): Nachkauf nur Blau, 2 % vom Kontostand", () => {
     const t = (d: number, blue: boolean) => ({ sym: "X", entry: d * D * 1000, exit: 900 * D * 1000, r: 10, blue });
     const r = simulateAccount([t(1, true), t(2, true), t(3, false)]);
     expect(r.taken).toBe(2);
-    // Gewinn 50 € + 25 €, KESt 27,5 %, 4 Orders à 7,90 €
-    expect(r.end).toBeCloseTo(8000 + 75 - 4 * 7.9 - 75 * 0.275, 6);
+    // 1. Kauf 10 % von 10.000 € = 1.000 € (+100 €), Nachkauf 2 % von 9.992,10 € = 200 € (+20 €), KESt 27,5 %, 4 Orders à 7,90 €
+    expect(r.end).toBeCloseTo(10000 + 120 - 4 * 7.9 - 120 * 0.275, 6);
   });
 
-  it("Depot: Nachkauf nur bei neuem blauen Bereich, höchstens 4", () => {
+  it("Depot: Nachkauf nur bei neuem blauen Bereich, höchstens 2 (Shipmaster 0.1)", () => {
     const base = { kind: "stock", horizon: "long", direction: "long", entry: 100, stop: 0, targets: [150], openedAt: 1, reason: "", score: 0, signal: "buy", pattern: "", status: "open", strategy: "longterm" } as const;
     const pos = [{ ...base, id: "a", symbol: "X", name: "X", lt: { key: "k1", zoneTop: 1, zoneBottom: 1, invalidation: 1, targets: [] } }] as never[];
     expect(nachkaufState("X", { key: "k1" }, pos).allowed).toBe(false); // gleicher Bereich
-    expect(nachkaufState("X", { key: "k2" }, pos)).toMatchObject({ allowed: true, left: 4 });
+    expect(nachkaufState("X", { key: "k2" }, pos)).toMatchObject({ allowed: true, left: 2 });
     expect(nachkaufState("X", null, pos).allowed).toBe(false); // kein Blau
     expect(nachkaufState("Y", { key: "k2" }, pos).allowed).toBe(false); // nicht im Depot
     const full = [...pos, ...[2, 3, 4, 5].map((i) => ({ ...base, id: `n${i}`, symbol: "X", name: "X", nachkauf: true, lt: { key: `n${i}` } }))] as never[];

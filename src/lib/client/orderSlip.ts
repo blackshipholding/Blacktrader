@@ -41,11 +41,13 @@ export interface OrderSlip {
   text: string;
 }
 
-/** Erlaubter Betrag über dem Einsatz je Trade */
+/** Erlaubter Aufschlag über dem Betrag: 10 % (Shipmaster 0.1; vorher 50 € bei 500 €) */
+export const OVER_SHARE = 0.1;
+/** @deprecated nur noch für ältere Aufrufe: 10 % von 500 € */
 export const OVER_BUDGET = 50;
 
 /** Stückzahl: Krypto genau; sonst ganze Stück am nächsten am Budget, höchstens `cap` (Budget + erlaubter Aufschlag). */
-export function qtyFor(kind: string, budget: number, priceEur: number, cap = budget + OVER_BUDGET): number {
+export function qtyFor(kind: string, budget: number, priceEur: number, cap = budget * (1 + OVER_SHARE)): number {
   if (!(priceEur > 0)) return 0;
   const q = budget / priceEur;
   if (kind === "crypto") return Math.floor(q * 1e4) / 1e4;
@@ -87,7 +89,7 @@ export function makeOrderSlip(i: SlipInput): OrderSlip {
   const prices = i.tranches?.length ? i.tranches : [i.entry];
   const total = i.budget ?? ACCOUNT.stake;
   const budget = total / prices.length;
-  const over = (OVER_BUDGET * total) / ACCOUNT.stake;
+  const over = OVER_SHARE * total;
   let orders = prices.map((p) => {
     const qty = qtyFor(i.kind, budget, e(p), budget + over / prices.length);
     return { qty, limitEur: e(p), amountEur: qty * e(p) };

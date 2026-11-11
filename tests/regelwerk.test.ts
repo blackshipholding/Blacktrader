@@ -26,12 +26,14 @@ describe("Regelwerk C1: kleine Schritte", () => {
 });
 
 describe("Regelwerk: Inhalt", () => {
-  it("A1–A5, B1–B7, C1–C4", () => {
+  it("A1–A5, B1–B9, C1–C4 (Shipmaster 0.1)", () => {
     expect(RULES_A.map((r) => r.id)).toEqual(["A1", "A2", "A3", "A4", "A5"]);
-    expect(RULES_B.map((r) => r.id)).toEqual(["B1", "B2", "B3", "B4", "B5", "B6", "B7"]);
+    expect(RULES_B.map((r) => r.id)).toEqual(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]);
     expect(RULES_C.map((r) => r.id)).toEqual(["C1", "C2", "C3", "C4"]);
     expect(RULES_A[0].text).toContain("60 %");
-    expect(RULES_A[2].text).toContain("8.000 €");
+    expect(RULES_A[1].text).toContain("10 % vom Kontostand");
+    expect(RULES_A[2].text).toContain("10.000 €");
+    expect(RULES_A[3].text).toContain("Keine Shorts");
   });
 });
 

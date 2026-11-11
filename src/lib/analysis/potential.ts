@@ -30,7 +30,9 @@ export function basePotential(chancePct: number | null | undefined, riskPct: num
  * Turnier gleich handeln. WIEDER ENTFERNBAR: `enabled: false` – das Turnier rechnet zur Kontrolle jedes Mal auch ohne
  * die Regel und meldet, wenn Blacktrader ohne sie besser abschneidet.
  */
-export const BLUE_RULE = { enabled: true, maxRiskPct: 40, minChancePct: 40 } as const;
+// Shipmaster 0.1 (11.11.2026): AUS – Härtetest 100 × 1 Mio. Kunden ohne Blau-Regel besser (alt 9,7 statt 8,2 % p. a.,
+// weniger Kunden mit Verlust, in beiden Zeithälften). Wieder einschaltbar mit enabled: true.
+export const BLUE_RULE = { enabled: false, maxRiskPct: 40, minChancePct: 40 } as const;
 
 export function passesBlueRule(chancePct: number | null | undefined, riskPct: number | null | undefined): boolean {
   if (!BLUE_RULE.enabled) return true;

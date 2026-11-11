@@ -177,12 +177,12 @@ export interface AppData {
   weekly?: { at: number; equity: number; ziel: number; stop: number; bhValue?: number } | null;
 }
 
-/** Erlaubtes Startkapital: 1.000 € bis 10 Mio. €, auf ganze 100 € gerundet; ungültig → 8.000 € */
+/** Erlaubtes Startkapital: 1.000 € bis 10 Mio. €, auf ganze 100 € gerundet; ungültig → 10.000 € (Shipmaster 0.1) */
 export const CAPITAL_MIN = 1000;
 export const CAPITAL_MAX = 10_000_000;
 export function normalizeCapital(v: unknown): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) return 8000;
+  if (!Number.isFinite(n) || n <= 0) return 10000;
   return Math.min(CAPITAL_MAX, Math.max(CAPITAL_MIN, Math.round(n / 100) * 100));
 }
 
@@ -201,7 +201,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoBackupFile: true,
   depotNames: ["Depot 1", "Depot 2", "Depot 3", "Depot 4"],
   lastDepot: 1,
-  capitalEur: 8000,
+  capitalEur: 10000,
   keys: { finnhub: "", alphavantage: "", openfigi: "", llm: "", llmProvider: "anthropic", llmModel: "" },
 };
 

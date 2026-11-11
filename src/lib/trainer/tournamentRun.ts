@@ -6,7 +6,9 @@ import type { LearnableParams } from "../analysis/params";
 import type { AssetKind, Candle, Horizon } from "../types";
 import { backtestSeries } from "./engine";
 import { blueTrade, greenRedTrade, suppressedBy, type ActiveIntervals } from "../analysis/tradeRules";
-import { benchmarkRun, makeWindows, regimeIndex, rank, RULES, runWindow, SCENARIOS, summarizeRuns, type ContestantResult, type PoolTrade, type RunResult, type Scenario, type Series, type TournamentReport, type Window } from "./tournament";
+import { HARDTEST_OPPONENTS, TV_OPPONENTS } from "./opponentsTv";
+import { b8Hardtest, b9Rank, hardtestWindows, htStats, rotateOpponents, type HtBaseCache, type HtStats } from "./hardtest";
+import { benchmarkRun, makeWindows, withCaps, regimeIndex, rank, RULES, runWindow, SCENARIOS, summarizeRuns, type ContestantResult, type PoolTrade, type RunResult, type Scenario, type Series, type TournamentReport, type Window } from "./tournament";
 import { universe, type CellKey, type SeriesSpec } from "./universe";
 import { isUsStock, makeVariants, OPPONENTS, type AnalystEvent, type BotParams, type VariantOrigin } from "./opponents";
 
@@ -23,7 +25,14 @@ export interface TournamentIO {
   champions?: Record<string, BotParams>;
   /** Zufallszahl für neue Varianten (jedes Turnier anders) */
   seed?: number;
+  /** Welche 9 Gegner dran sind (sie wechseln sich ab); Standard: Tag */
+  turn?: number;
 }
+
+/** Alle möglichen Gegner: die bisherigen 15, 9 TradingView-typische Bots, die 4 stärksten aus dem großen Härtetest */
+export const OPPONENT_POOL = [...OPPONENTS, ...TV_OPPONENTS, ...HARDTEST_OPPONENTS];
+/** Je Turnier treten 9 Gegner an – sie wechseln sich ab (Shipmaster 0.1, Wunsch des Nutzers) */
+export const OPPONENTS_PER_TEST = 9;
 
 /** Welche Variante ein Gegner gespielt hat (steht in der Auswertung) */
 export interface LineupEntry {
@@ -69,6 +78,8 @@ export interface Prepared {
   /** Vergleich: echter S&P-500-ETF (handelt nicht mit) */
   benchmark?: ContestantResult | null;
   note: string;
+  /** Härtetest-Kunden (B8): zum Lernen und gesperrt (letzte 2 Jahre, nur Schlusskontrolle) */
+  ht: { learn: Window[]; locked: Window[] };
 }
 
 /**
@@ -124,8 +135,10 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
   }
   if (assets.length < 10) return null;
   const from = spx[200].time;
-  const windows = makeWindows(spx, from);
+  // Jeder Zeitraum mit mehreren Depotgrößen (Kunden) – alle Teilnehmer bekommen genau dasselbe Geld
+  const windows = withCaps(makeWindows(spx, from));
   if (!windows.length) return null;
+  const ht = hardtestWindows(spx, from);
   const bySym = new Map(assets.map((a) => [a.symbol, a.daily]));
   const closeAt = (c: Candle[] | null | undefined, t: number) => {
     if (!c?.length) return null;
@@ -160,13 +173,14 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
   const bots: ContestantResult[] = [];
   const lineup: LineupEntry[] = [];
   const seed = io.seed ?? 1;
-  for (let k = 0; k < OPPONENTS.length; k++) {
+  const players = rotateOpponents(OPPONENT_POOL, OPPONENTS_PER_TEST, io.turn ?? Math.floor(Date.now() / 86400000));
+  for (let k = 0; k < players.length; k++) {
     if (io.shouldStop()) return null;
-    const o = OPPONENTS[k];
+    const o = players[k];
     const vars = makeVariants(o, io.champions?.[o.id], seed * 101 + k * 7919);
     let best: { v: (typeof vars)[number]; pool: PoolTrade[]; score: number } | null = null;
     for (let n = 0; n < vars.length; n++) {
-      P(0.7 + (0.3 * (k + n / vars.length)) / OPPONENTS.length, `${o.name}: Variante ${n + 1}/${vars.length} wird geprüft`);
+      P(0.7 + (0.3 * (k + n / vars.length)) / players.length, `${o.name}: Variante ${n + 1}/${vars.length} wird geprüft`);
       await tick();
       if (io.shouldStop()) return null;
       const pool = toEur(o.build(data, vars[n].params, ctx).filter((t) => t.entry >= from));
@@ -182,9 +196,9 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
   // Vergleich nur, wenn der ETF den ganzen Zeitraum abdeckt (Kurs in Euro, Dividenden im Kurs enthalten)
   const benchmark = etf && etf.length > 300 && etf[0].time <= from + 7 * 86400 ? summarizeRuns("etf", BENCHMARK.name, BENCHMARK.desc, windows.map((w) => ({ w, r: benchmarkRun(etf, w) }))) : null;
   const cnt: Partial<Record<Scenario, number>> = {};
-  for (const w of windows) cnt[w.scenario] = (cnt[w.scenario] ?? 0) + 1;
-  const note = `Alle Beträge in Euro (Wechselkurs am Kauf- und Verkaufstag${eurusd?.length ? "" : " – Euro/Dollar-Kurs nicht erreichbar, ohne Umrechnung"}). ${assets.length} Werte (Aktien, Krypto, Rohstoffe), Daten ab ${new Date(from * 1000).toLocaleDateString("de-DE")}, ${windows.length} Zeiträume à 5 Jahre (${SCENARIOS.filter((s) => cnt[s]).map((s) => `${cnt[s]}× ${s === "baerisch" ? "bärisch" : s}`).join(", ")}). Rohstoffe kurzfristig (Stundenkerzen) sind nicht enthalten. Bank-Analysten: Einstufungen erst ab etwa 2012 und nur für US-Aktien (${[...extraData.values()].filter((x) => x.analysts?.length).length} Werte mit Daten).`;
-  return { assets, windows, from, priceAt, techWeakAt, toEur, regimeAt: regimeIndex(spx), bots, lineup, benchmark, note };
+  for (const w of windows) if (w.cap === windows[0].cap) cnt[w.scenario] = (cnt[w.scenario] ?? 0) + 1;
+  const note = `Alle Beträge in Euro (Wechselkurs am Kauf- und Verkaufstag${eurusd?.length ? "" : " – Euro/Dollar-Kurs nicht erreichbar, ohne Umrechnung"}). ${assets.length} Werte (Aktien, Krypto, Rohstoffe), Daten ab ${new Date(from * 1000).toLocaleDateString("de-DE")}, ${windows.length / Math.max(1, new Set(windows.map((w) => w.cap)).size)} Zeiträume à 5 Jahre × ${new Set(windows.map((w) => w.cap)).size} Depotgrößen (${SCENARIOS.filter((s) => cnt[s]).map((s) => `${cnt[s]}× ${s === "baerisch" ? "bärisch" : s}`).join(", ")}). Rohstoffe kurzfristig (Stundenkerzen) sind nicht enthalten. Härtetest: ${ht.learn.length + ht.locked.length} Kunden (davon ${ht.locked.length} gesperrt). Gegner diesmal: ${players.map((o) => o.name).join(", ")}. Bank-Analysten: Einstufungen erst ab etwa 2012 und nur für US-Aktien (${[...extraData.values()].filter((x) => x.analysts?.length).length} Werte mit Daten).`;
+  return { assets, windows, from, priceAt, techWeakAt, toEur, regimeAt: regimeIndex(spx), bots, lineup, benchmark, note, ht };
 }
 
 /** Alle Trades von Blacktrader mit einem Parameter-Stand (grün/rot: Tag + Woche; blau: Langfrist-Bereich). */
@@ -234,7 +248,7 @@ export async function blacktraderPool(prep: Prepared, params: Params, io: Tourna
 }
 
 /** Versuche einer Runde (Runde b spielt die Zeiträume b, b+5, b+10, … – so ist jede Runde gemischt). */
-export const roundWindows = (prep: Prepared, round: number) => prep.windows.map((w, i) => ({ w, i })).filter((x) => x.i % RULES.rounds === round);
+export const roundWindows = (prep: Prepared, round: number) => prep.windows.map((w, i) => ({ w, i })).filter((x) => (x.w.k ?? x.i) % RULES.rounds === round);
 
 /** Die Trades, die Blacktrader wirklich macht (ohne die von der Blau-Regel ausgeschlossenen) */
 export const activePool = (pool: PoolTrade[]) => pool.filter((t) => !t.blueRuleOut);
@@ -253,8 +267,12 @@ export function buildReport(prep: Prepared, btRuns: { w: Window; r: RunResult }[
     return p.length ? summarizeRuns(`bt-${c}`, `Blacktrader nur ${c === "blau" ? "Blau" : c === "gruen" ? "Grün" : "Rot"}`, "", prep.windows.map((w) => ({ w, r: runWindow(p, w, prep.priceAt) }))) : null;
   };
   const scenarioCount: Partial<Record<Scenario, number>> = {};
-  for (const w of prep.windows) scenarioCount[w.scenario] = (scenarioCount[w.scenario] ?? 0) + 1;
-  return { v: 2, at: new Date().toISOString(), rules: { ...RULES }, ranking, scenarioCount, rounds, split: { blau: only("blau"), gruen: only("gruen"), rot: only("rot") }, benchmark: prep.benchmark ?? null, blueRule: blueRuleCheck(prep, finalPool), improvedCells, opponents: prep.lineup, note: prep.note };
+  for (const w of prep.windows) if (w.cap === prep.windows[0].cap) scenarioCount[w.scenario] = (scenarioCount[w.scenario] ?? 0) + 1;
+  // Härtetest mit dem Endstand: Kunden zum Lernen + gesperrte letzte 2 Jahre als Schlusskontrolle
+  const hl = prep.ht.learn.length ? htStats(active, prep.ht.learn, prep.priceAt) : null;
+  const hk = prep.ht.locked.length ? htStats(active, prep.ht.locked, prep.priceAt) : null;
+  const hardtest = hl ? { customers: prep.ht.learn.length + prep.ht.locked.length, learn: { avg: hl.avg, lossShare: hl.lossShare, worst5: hl.worst5, bear: hl.bear }, locked: hk ? { avg: hk.avg, lossShare: hk.lossShare, n: hk.n } : null } : null;
+  return { v: 2, at: new Date().toISOString(), rules: { ...RULES }, ranking, scenarioCount, rounds, split: { blau: only("blau"), gruen: only("gruen"), rot: only("rot") }, benchmark: prep.benchmark ?? null, blueRule: blueRuleCheck(prep, finalPool), improvedCells, opponents: prep.lineup, note: prep.note, hardtest };
 }
 
 /** Kontrolle: derselbe Stand mit und ohne Blau-Regel über alle Zeiträume – zeigt, ob die Regel noch hilft. */
@@ -271,7 +289,10 @@ function blueRuleCheck(prep: Prepared, pool: PoolTrade[]): { on: number; off: nu
  * 8.000 €, 500 € je Trade, Gebühren, KESt) im Schnitt NICHT schlechter abschneidet und NIE ausscheidet
  * (schied schon der bisherige Stand aus, dann jedenfalls nicht öfter). Rückgabe: Grund für ein Nein, sonst null.
  */
-export async function b7Check(prep: Prepared, kind: AssetKind, base: Params, cand: Params, io: TournamentIO, basePool?: PoolTrade[] | null): Promise<{ veto: string | null; basePool: PoolTrade[] | null; base: number; cand: number } | null> {
+/** Härtetest-Werte des bisherigen Stands je Trade-Pool (B8) */
+const htCache = new WeakMap<PoolTrade[], HtBaseCache>();
+
+export async function b7Check(prep: Prepared, kind: AssetKind, base: Params, cand: Params, io: TournamentIO, basePool?: PoolTrade[] | null): Promise<{ veto: string | null; basePool: PoolTrade[] | null; base: number; cand: number; ht?: { base: HtStats; cand: HtStats; dropoutWins: number } | null } | null> {
   const span: [number, number] = [0, 1];
   const bp = basePool ?? (await blacktraderPool(prep, base, io, span, "Prüfung B7: bisheriger Stand", kind));
   if (!bp) return null;
@@ -284,5 +305,16 @@ export async function b7Check(prep: Prepared, kind: AssetKind, base: Params, can
   let veto: string | null = null;
   if (c.broke > 0 && (b.broke === 0 || c.broke > b.broke)) veto = `im Turnier ${c.broke}× ausgeschieden`;
   else if (c.avgPerYear < b.avgPerYear - 1e-9) veto = `im Turnier schlechter (${pc(c.avgPerYear)} statt ${pc(b.avgPerYear)} pro Jahr)`;
-  return { veto, basePool: bp, base: b.avgPerYear, cand: c.avgPerYear };
+  // B8: Härtetest (rund 6.000 Kunden, Shipmaster-Regeln, 6 Prüfungen, mind. +0,2 Punkte); letzte 2 Jahre gesperrt
+  let ht: { base: HtStats; cand: HtStats; dropoutWins: number } | null = null;
+  if (!veto && prep.ht.learn.length) {
+    let cache = htCache.get(bp);
+    if (!cache) htCache.set(bp, (cache = {}));
+    const r = b8Hardtest(activePool(bp), activePool(cp), prep.ht.learn, prep.priceAt, cache);
+    ht = r;
+    veto = r.veto;
+  }
+  // B9: gegen die 9 Gegner dieses Turniers nicht abrutschen
+  if (!veto && prep.bots.length) veto = b9Rank(b.avgPerYear, c.avgPerYear, prep.bots).veto;
+  return { veto, basePool: bp, base: b.avgPerYear, cand: c.avgPerYear, ht };
 }

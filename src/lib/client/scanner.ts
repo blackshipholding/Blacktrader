@@ -263,14 +263,15 @@ export async function runScan(maxAgeMs = 15 * 60e3) {
     const cands: ChanceCandidate[] = [];
     for (const e of entries) {
       const b = e.best;
-      if (b.color === "gelb" || b.zoneTop == null || b.zoneBottom == null) continue;
+      // Shipmaster 0.1: Shorts handelt Blacktrader nicht → nicht in seiner Live-Bilanz
+      if (b.color === "gelb" || b.color === "rot" || b.zoneTop == null || b.zoneBottom == null) continue;
       const blue = b.color === "blau";
       const candles = blue ? e.ltCandles ?? [] : b.horizon ? e.horizons[b.horizon]?.candles ?? [] : [];
       const stop = blue ? b.invalidation : b.stop;
       const target = b.targets?.[0];
       if (stop == null || target == null) continue;
       // Neue Einträge nur aus der Chancen-Liste; Kerzen für alle Werte (damit eingetragene weiter geprüft werden)
-      cands.push({ key: `${assetKey(e.asset)}|${b.key}${inTop.has(assetKey(e.asset)) ? "" : "|nur-pruefen"}`, symbol: e.asset.symbol, name: e.asset.name, kind: e.asset.kind, color: b.color, dir: b.color === "rot" ? "short" : "long", zoneTop: b.zoneTop, zoneBottom: b.zoneBottom, stop, target, candles });
+      cands.push({ key: `${assetKey(e.asset)}|${b.key}${inTop.has(assetKey(e.asset)) ? "" : "|nur-pruefen"}`, symbol: e.asset.symbol, name: e.asset.name, kind: e.asset.kind, color: b.color, dir: "long", zoneTop: b.zoneTop, zoneBottom: b.zoneBottom, stop, target, candles });
     }
     updateChanceLog(cands.filter((c) => !c.key.endsWith("|nur-pruefen")), undefined, cands);
   } catch {

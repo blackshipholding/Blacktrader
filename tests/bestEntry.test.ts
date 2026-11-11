@@ -179,8 +179,8 @@ describe("Chancen: nur die mit der höchsten Chance (höchstens 20, gern weniger
   it("Blau nur im Bereich und mit begrenzter Ungültig-Grenze", async () => {
     const { isTopChance } = await import("../src/lib/client/scanner");
     const blue = (inv: number, price: number) => entry({ color: "blau", zoneTop: 100, zoneBottom: 80, invalidation: inv, targets: [160] }, price);
-    expect(isTopChance(blue(70, 95))).toBe(true); // Blau braucht keine Potenzial-Grenze, nur die Blau-Regel
-    expect(isTopChance(blue(20, 95))).toBe(false); // Ungültig 80 % entfernt
+    expect(isTopChance(blue(70, 95))).toBe(true); // Blau braucht keine Potenzial-Grenze
+    expect(isTopChance(blue(20, 95))).toBe(true); // Shipmaster 0.1: Blau-Regel aus – auch weite Ungültig-Grenze erlaubt
     expect(isTopChance(blue(70, 110))).toBe(false); // noch nicht im Bereich
   });
 });
@@ -228,7 +228,7 @@ describe("Punkte für blauen Langfrist-Kauf", () => {
 });
 
 describe("Handelsregeln an einer Stelle (Chancen, Turnier, EchoChart)", () => {
-  it("Short nur im Bärenmarkt, Sektor-Regel, Chance ≥ 15 %, obere Hälfte nach Potenzial, Blau-Regel", async () => {
+  it("Shipmaster 0.1: keine Shorts, Sektor-Regel, Chance ≥ 15 %, obere Hälfte nach Potenzial, Blau-Regel aus", async () => {
     const { greenRedTrade, blueTrade } = await import("../src/lib/analysis/tradeRules");
     const ctx = (bear: boolean, weak: boolean, symbol = "XOM") => ({ symbol, techWeakAt: () => weak, regimeAt: () => (bear ? ("baerisch" as const) : ("bullisch" as const)) });
     const long = { direction: "long", entryTime: 1, entry: 100, stop: 90, target: 140 };
@@ -237,8 +237,8 @@ describe("Handelsregeln an einer Stelle (Chancen, Turnier, EchoChart)", () => {
     expect(greenRedTrade(long, ctx(false, true, "NVDA"))).toBeNull(); // Tech bei schwachem NASDAQ
     const short = { direction: "short", entryTime: 1, entry: 100, stop: 110, target: 60 };
     expect(greenRedTrade(short, ctx(false, false))).toBeNull(); // kein Bärenmarkt
-    expect(greenRedTrade(short, ctx(true, false))).toMatchObject({ color: "rot" });
+    expect(greenRedTrade(short, ctx(true, false))).toBeNull(); // Shipmaster 0.1: auch im Bärenmarkt kein Short-Handel
     expect(blueTrade({ zoneTop: 100, invalidation: 80, target: 160 }).ok).toBe(true);
-    expect(blueTrade({ zoneTop: 100, invalidation: 50, target: 160 }).ok).toBe(false);
+    expect(blueTrade({ zoneTop: 100, invalidation: 50, target: 160 }).ok).toBe(true); // Blau-Regel aus
   });
 });

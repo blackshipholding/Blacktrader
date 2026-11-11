@@ -24,8 +24,14 @@ export interface RuledTrade {
 }
 
 /** Grüner/roter Trade nach den Regeln erlaubt? (null = aussortiert) */
+/** Shipmaster 0.1: keine Shorts handeln */
+export const SHIPMASTER_NO_SHORTS = true;
+
 export function greenRedTrade(t: { direction: string; entryTime: number; entry: number; stop?: number; target?: number }, ctx: RuleCtx): RuledTrade | null {
   const short = t.direction === "short";
+  // Shipmaster 0.1 (11.11.2026): Blacktrader handelt keine Shorts (Härtetest: ohne Shorts besser). Rote Signale gibt es
+  // nur noch als Info im Bärenmarkt (Chancen/Detailansicht) – in Turnier, Training und EchoChart wird nicht geshortet.
+  if (short && SHIPMASTER_NO_SHORTS) return null;
   if (!short && TECH_SYMBOLS.has(ctx.symbol) && ctx.techWeakAt(t.entryTime)) return null;
   if (short && ctx.regimeAt(t.entryTime) !== "baerisch") return null;
   const riskPct = t.stop != null ? (Math.abs(t.entry - t.stop) / t.entry) * 100 : undefined;

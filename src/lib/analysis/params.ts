@@ -49,6 +49,8 @@ export interface LearnableParams {
   htfConfirm: number;
   /** 1 = nach Ziel 1 aussteigen, wenn ein Wellen-5-Ende mit Divergenz erkannt wird (nur Gewinnsicherung) */
   wave5Exit: number;
+  /** Anteil des Momentum-Messers (12 Monate) INNERHALB des Volumen/RSI-Teils; Start 0 (Shipmaster 0.1) */
+  momentumWeight: number;
 }
 
 export const DEFAULT_PARAMS: LearnableParams = Object.freeze({
@@ -72,6 +74,7 @@ export const DEFAULT_PARAMS: LearnableParams = Object.freeze({
   wave5Filter: 0,
   htfConfirm: 0,
   wave5Exit: 0,
+  momentumWeight: 0,
 }) as LearnableParams;
 
 /** Erlaubte Bereiche (der Trainer darf nur innerhalb dieser Grenzen und nur diese Schlüssel verändern). */
@@ -93,6 +96,7 @@ export const PARAM_BOUNDS: Record<Exclude<keyof LearnableParams, "fundamentalWei
   wave5Filter: [0, 1],
   htfConfirm: [0, 1],
   wave5Exit: [0, 1],
+  momentumWeight: [0, 0.5],
 };
 
 /** Prüft eine Gewichtung gegen die festen Grenzen. */

@@ -199,7 +199,7 @@ self.onmessage = async (e: MessageEvent) => {
           if (!pool) break;
           const played = playRound(prep, pool, b);
           runs.push(...played);
-          rounds.push({ round: b + 1, avgPerYear: played.reduce((a, x) => a + cagr(x.r.end), 0) / Math.max(1, played.length), changed });
+          rounds.push({ round: b + 1, avgPerYear: played.reduce((a, x) => a + cagr(x.r.end, x.r.cap), 0) / Math.max(1, played.length), changed });
           T(base + step, `Runde ${b + 1}/${R} gespielt`, b + 1);
         }
         if (!stop && pool && runs.length === prep.windows.length) {

@@ -21,6 +21,7 @@ const STEP: Record<NumKey, number> = {
   wave5Filter: 1,
   htfConfirm: 1,
   wave5Exit: 1,
+  momentumWeight: 0.1,
 };
 
 /** Nur nach oben (strenger): */
@@ -32,7 +33,7 @@ export function activeKeys(p: LearnableParams): { keys: NumKey[]; degrees: boole
   const usesScore = p.minStrength > 0;
   const usesElliott = usesScore || p.elliottAgreement > 0 || p.wave5Filter > 0;
   if (usesElliott) keys.push("fibToleranceScale", "rankFibWeight", "rankContextStrength");
-  if (usesScore) keys.push("rsiOverbought", "rsiOversold", "relVolHigh", "relVolBreakout", "relVolLow");
+  if (usesScore) keys.push("rsiOverbought", "rsiOversold", "relVolHigh", "relVolBreakout", "relVolLow", "momentumWeight");
   if (usesScore || p.wave5Filter > 0) keys.push("divergenceRecentBars");
   return { keys, degrees: usesElliott, weights: usesScore };
 }

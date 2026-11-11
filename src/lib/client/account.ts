@@ -1,56 +1,78 @@
-// Blacktrader-Konto im Depot: echtes Geld-Modell statt „jeder Trade mit dem ganzen Geld“.
-// Startkapital stellt jeder Benutzer selbst ein (Standard 8.000 €). Einsatz je Trade = 1/16 davon (8.000 € → 500 €),
-// Nachkauf = halber Einsatz (250 €), höchstens 4 × – dasselbe Verhältnis wie im Härtetest. Unten „8.000 €/500 €“ = Standard.
-// 8.000 € Start, 500 € je Trade (echter Betrag aus Stück × Kurs, bis 50 € darüber), 7,90 € Gebühr je Order (flatex), 27,5 % KESt sofort bei Gewinn mit Verlustausgleich
-// im selben Kalenderjahr. Langfrist-Trades (blau): 500 € gesamt, jede ausgeführte Teil-Order kostet eine Gebühr.
-// Reicht das Geld nicht für einen neuen Trade (500 € + Gebühr), wird nichts übernommen. Ohne Geld UND ohne offene
-// Position ist das Konto leer (pleite) – Neustart mit 8.000 €; alte Trades bleiben als frühere Runde sichtbar.
-import type { Trade } from "../store/store";
+// Blacktrader-Konto im Depot – Regeln „Shipmaster 0.1“ (Nutzer-Entscheid 11.11.2026, fest – Regelwerk A, Blacktrader ändert
+// sie nie selbst). Härtetest 100 × 1 Mio. Kunden: ab 10.000 € 13,9 % p. a., 1,9 % Kunden mit Verlust.
+//  • Kontostand = freies Geld + offene Positionen zum Kaufpreis (nach Gebühren und KESt; Gewinne zählen erst nach dem Verkauf)
+//  • 1. Kauf = 10 % vom Kontostand (Blau in 3 Teilen, Grün eine Order) → rund 10 Positionen
+//  • Nachkauf nur bei Blau, höchstens 2 × 2 % vom Kontostand, erst wenn der Kurs die erste blaue Zone verlassen hat
+//  • Order-Zettel: ganze Stück bis 10 % über dem Betrag
+//  • Startkapital gibt der Nutzer im Depot ein (Standard 10.000 €); darunter handelt Blacktrader nicht
+//  • 7,90 € Gebühr je Order (flatex), 27,5 % KESt sofort bei Gewinn mit Verlustausgleich im selben Kalenderjahr
+// Reicht das Geld nicht für einen neuen Trade, wird nichts übernommen. Ohne Geld UND ohne offene Position ist das Konto
+// leer (pleite) – Neustart mit dem Startkapital; alte Trades bleiben als frühere Runde sichtbar.
+import type { AppData, Trade } from "../store/store";
 import { KestYear } from "../analysis/kest";
 import { getData, normalizeCapital } from "../store/store";
 
-/** Getestetes Verhältnis: Einsatz je Trade = Startkapital ÷ 16 (8.000 € → 500 €); Nachkauf = halber Einsatz */
-export const STAKE_SHARE = 500 / 8000;
-export const ADD_SHARE = 0.5;
+/** Shipmaster 0.1 – feste Geld-Regeln */
+export const SHIPMASTER = Object.freeze({ version: "0.1", first: 0.1, add: 0.02, addMax: 2, minCapital: 10000, over: 0.1 });
+/** Betrag für Trades ohne gespeicherten Einsatz (ältere Versionen) */
+const LEGACY_STAKE = 500;
 /** Unter diesem Einsatz je Trade fressen die festen 7,90 € je Order einen großen Teil des Gewinns */
 export const LOW_STAKE_WARN = 250;
 
-/** Einsatz je Trade für ein Startkapital (auf ganze € gerundet) */
-export const stakeFor = (capital: number) => Math.round(normalizeCapital(capital) * STAKE_SHARE);
-/** Nachkauf-Betrag für ein Startkapital */
-export const addStakeFor = (capital: number) => Math.round(stakeFor(capital) * ADD_SHARE);
+/** 1. Kauf und Nachkauf für einen Kontostand (auf ganze € gerundet) */
+export const stakeFor = (accountValue: number) => Math.round(Math.max(0, accountValue) * SHIPMASTER.first);
+export const addStakeFor = (accountValue: number) => Math.round(Math.max(0, accountValue) * SHIPMASTER.add);
 
-/** Eingestelltes Startkapital (ohne Browser/Einstellung: 8.000 €) */
+/** Eingestelltes Startkapital (ohne Browser/Einstellung: 10.000 €) */
 export function capitalNow(): number {
   try {
     return normalizeCapital(getData().settings.capitalEur);
   } catch {
-    return 8000;
+    return SHIPMASTER.minCapital;
+  }
+}
+/** Unter 10.000 € Startkapital handelt Blacktrader im Blacktrader-Konto nicht */
+export const belowMinCapital = (capital = capitalNow()) => capital < SHIPMASTER.minCapital;
+
+/** Kontostand der aktuellen Runde (freies Geld + offene Positionen zum Kaufpreis) – je Datenstand zwischengespeichert */
+const valueCache = new WeakMap<object, number>();
+export function accountValueNow(): number {
+  try {
+    const d: AppData = getData();
+    const hit = valueCache.get(d);
+    if (hit != null) return hit;
+    const rounds = computeAccount(d.trades, d.accountResets, () => null);
+    const r = rounds[rounds.length - 1];
+    const v = Math.max(0, r.cash + r.invested);
+    valueCache.set(d, v);
+    return v;
+  } catch {
+    return capitalNow();
   }
 }
 
-/** Konto-Regeln – Start und Einsatz folgen dem eingestellten Startkapital, Gebühr und KESt sind fest. */
+/** Konto-Regeln – Start = eingegebenes Startkapital; 1. Kauf 10 % und Nachkauf 2 % vom aktuellen Kontostand. */
 export const ACCOUNT = {
   get start() {
     return capitalNow();
   },
   get stake() {
-    return stakeFor(capitalNow());
+    return stakeFor(accountValueNow());
   },
   fee: 7.9,
   tax: 0.275,
 } as const;
-/** Nachkauf nur bei Blau: höchstens 4 × halber Einsatz je Wert (Standard 4 × 250 € zusätzlich zum ersten Einstieg mit 500 €) */
+/** Nachkauf nur bei Blau: höchstens 2 × 2 % vom Kontostand je Wert */
 export const ADD = {
-  max: 4,
+  max: SHIPMASTER.addMax,
   get stake() {
-    return addStakeFor(capitalNow());
+    return addStakeFor(accountValueNow());
   },
 } as const;
 
 const yearOf = (ms: number) => new Date(ms).getUTCFullYear();
-/** Eingesetzter Betrag eines Trades (Stück × Kurs beim Übernehmen; ältere Trades: 500 €) */
-export const stakeOf = (t: Pick<Trade, "stakeEur">) => (t.stakeEur && t.stakeEur > 0 ? t.stakeEur : ACCOUNT.stake);
+/** Eingesetzter Betrag eines Trades (Stück × Kurs beim Übernehmen; ältere Trades ohne Angabe: 500 €) */
+export const stakeOf = (t: Pick<Trade, "stakeEur">) => (t.stakeEur && t.stakeEur > 0 ? t.stakeEur : LEGACY_STAKE);
 
 /** Gehört der Trade zum Konto? (übernommen; verfallene Orders ohne Ausführung zählen nicht) */
 export function countsForAccount(t: Trade): boolean {
@@ -153,7 +175,8 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
   }
   const equity = cash + openValue;
   const invested = [...open].reduce((a, x) => a + stakeOf(x), 0);
-  const blocked = cash < ACCOUNT.stake + ACCOUNT.fee;
+  // Ohne Kreis-Rechnung: 10 % vom Kontostand dieser Runde (ACCOUNT.stake würde das Konto erneut rechnen)
+  const blocked = cash < stakeFor(cash + invested) + ACCOUNT.fee;
   return {
     round,
     from,
@@ -187,11 +210,17 @@ export function freeCash(trades: Trade[], resets: number[]): number {
   return rounds[rounds.length - 1].cash;
 }
 
-/** Reicht das Geld für einen neuen Trade (Betrag, Standard 500 €, + 7,90 € Gebühr)? */
-export const canAfford = (trades: Trade[], resets: number[], amount: number = ACCOUNT.stake) => freeCash(trades, resets) >= amount + ACCOUNT.fee;
+/** Reicht das Geld für einen neuen Trade (Betrag, Standard 10 % vom Kontostand, + 7,90 € Gebühr)? Unter 10.000 €
+ *  Startkapital nie (Shipmaster 0.1). */
+export const canAfford = (trades: Trade[], resets: number[], amount: number = ACCOUNT.stake) => !belowMinCapital() && freeCash(trades, resets) >= amount + ACCOUNT.fee;
 
 /** Hinweis, wenn das Geld für einen neuen Trade nicht reicht (direkt in der App sichtbar) */
 export function noMoney(free?: number) {
+  if (belowMinCapital()) {
+    if (typeof window !== "undefined" && typeof window.alert === "function")
+      window.alert(`Blacktrader handelt erst ab ${SHIPMASTER.minCapital.toLocaleString("de-DE")} € Startkapital. Du kannst es im Depot ändern.`);
+    return;
+  }
   const f = free == null ? "" : ` Frei sind ${free.toFixed(2).replace(".", ",")} €.`;
   const text = `Nicht genug Geld: Für einen neuen Trade brauchst du ${ACCOUNT.stake.toLocaleString("de-DE")} € + ${ACCOUNT.fee.toFixed(2).replace(".", ",")} € Gebühr.${f} Erst muss ein offener Trade schließen – oder im Depot neu starten, wenn das Konto leer ist.`;
   if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(text);
@@ -222,10 +251,11 @@ export interface SimResult {
 }
 
 /**
- * Spielt Trades mit dem Konto durch (für das EchoChart): 8.000 € Start, 500 € je Trade nur wenn genug Geld da ist
- * (je Wert höchstens eine Position), 7,90 € je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im Jahr.
+ * Spielt Trades mit dem Konto durch (EchoChart) – Shipmaster 0.1: 1. Kauf 10 %, Nachkauf (nur Blau) höchstens 2 × 2 %
+ * vom Kontostand IN DER RÜCKRECHNUNG (freies Geld + offene Positionen zum Kaufpreis), nur wenn genug Geld da ist,
+ * je Wert höchstens eine Position, 7,90 € je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im Jahr.
  */
-export function simulateAccount(trades: SimTrade[]): SimResult {
+export function simulateAccount(trades: SimTrade[], start: number = ACCOUNT.start): SimResult {
   type Ev = { at: number; kind: 0 | 1; i: number };
   const ev: Ev[] = [];
   trades.forEach((t, i) => {
@@ -233,7 +263,8 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
     ev.push({ at: t.exit, kind: 0, i });
   });
   ev.sort((a, b) => a.at - b.at || a.kind - b.kind);
-  let cash: number = ACCOUNT.start;
+  let cash: number = start;
+  let invested = 0;
   let fees = 0;
   let tax = 0;
   const kest = new KestYear(ACCOUNT.tax);
@@ -247,7 +278,7 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
     if (e.kind === 1) {
       // Je Wert eine Position; Nachkauf nur bei Blau, höchstens ADD.max × ADD.stake
       const have = per.get(t.sym) ?? 0;
-      const stake = have > 0 ? ADD.stake : ACCOUNT.stake;
+      const stake = have > 0 ? addStakeFor(cash + invested) : stakeFor(cash + invested);
       if (broke || (have > 0 && (!t.blue || have > ADD.max)) || cash < stake + ACCOUNT.fee) {
         if (!broke && cash < stake + ACCOUNT.fee && open.size === 0) broke = true;
         skipped++;
@@ -256,6 +287,7 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
       cash -= stake + ACCOUNT.fee;
       fees += ACCOUNT.fee;
       open.set(e.i, stake);
+      invested += stake;
       per.set(t.sym, have + 1);
       taken++;
       continue;
@@ -263,6 +295,7 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
     if (!open.has(e.i)) continue;
     const st = open.get(e.i)!;
     open.delete(e.i);
+    invested -= st;
     per.set(t.sym, (per.get(t.sym) ?? 1) - 1);
     const g = (st * t.r) / 100;
     cash += st + g - ACCOUNT.fee;
@@ -271,7 +304,7 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
     cash -= k;
     tax += k;
   }
-  return { start: ACCOUNT.start, end: cash, profit: cash - ACCOUNT.start, profitPct: ((cash - ACCOUNT.start) / ACCOUNT.start) * 100, fees, tax, taken, skipped, broke };
+  return { start, end: cash, profit: cash - start, profitPct: ((cash - start) / start) * 100, fees, tax, taken, skipped, broke };
 }
 
 /** Hinweis: Wert liegt schon im Depot – nachkaufen nur bei blauen Einstiegen */

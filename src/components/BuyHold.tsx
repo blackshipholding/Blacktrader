@@ -3,7 +3,6 @@
 // Verkauft wird nur, wenn du es eingibst. Kurs jetzt: Börsenkurs, in Euro umgerechnet.
 import { runScan, useScan } from "@/lib/client/scanner";
 import { holdTrend } from "@/lib/client/holdingWatch";
-import { COLOR_LABEL } from "./AssetCard";
 import { useEffect, useMemo, useState } from "react";
 import { AddAsset } from "./AddAsset";
 import { Sheet } from "./Sheet";
@@ -11,8 +10,9 @@ import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
 import { toEur } from "@/lib/fx";
 import { actions, useAppData } from "@/lib/store/store";
-import type { ResolvedAsset } from "@/lib/types";
-import { NeutralGauge, scoreOf } from "./NeutralGauge";
+import type { Horizon, ResolvedAsset } from "@/lib/types";
+import { EntryTile } from "./EntryTile";
+import { useAssetSheet } from "./AssetSheet";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const pct = (x: number) => `${x > 0 ? "+" : ""}${x.toFixed(2).replace(".", ",")} %`;
@@ -59,12 +59,16 @@ function BlacktraderView({ h }: { h: Holding }) {
   const e = scan.entries.find((x) => x.asset.kind === h.kind && x.asset.symbol === h.symbol);
   if (!e) return <div className="mt-1 text-[13px] text-stone-500">{scan.busy ? "Blacktrader rechnet …" : "Blacktrader: noch keine Analyse"}</div>;
   const t = holdTrend(e);
-  return (
-    <div className="mt-1.5">
-      <NeutralGauge score={scoreOf(e)} prefix="Investiert" />
-      {t === -1 && <p className="mt-1.5 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-[13px] text-red-200">Großer Trend fallend – prüfe deine Position.</p>}
-    </div>
-  );
+  // Balken und Chart stehen in der Shipmaster-Kachel darunter (wie in der Watchlist); hier nur die Warnung
+  return t === -1 ? <p className="mt-1.5 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-[13px] text-red-200">Großer Trend fallend – prüfe deine Position.</p> : null;
+}
+
+/** Shipmaster-Tipp wie in der Watchlist: Kachel mit Chart, Balken, Einstieg/Stop/Ziel; Antippen → Detailansicht (nur Tipps) */
+function ShipmasterTip({ h, onOpen }: { h: Holding; onOpen: (a: ResolvedAsset, horizon?: Horizon) => void }) {
+  const scan = useScan();
+  const e = scan.entries.find((x) => x.asset.kind === h.kind && x.asset.symbol === h.symbol);
+  const asset = { symbol: h.symbol, name: h.name, kind: h.kind, yahooSymbol: h.yahooSymbol, binanceSymbol: h.binanceSymbol, isin: h.isin, exchange: h.exchange, currency: h.currency } as ResolvedAsset;
+  return <EntryTile asset={asset} entry={e} chart onOpen={() => onOpen(asset, e?.best.horizon ?? e?.ltHorizon)} />;
 }
 
 export function BuyHold() {
@@ -78,6 +82,7 @@ export function BuyHold() {
   const prices = usePrices(holdings);
   const [form, setForm] = useState<Form>(null);
   const [detail, setDetail] = useState<Holding | null>(null);
+  const { open: openSheet, sheet: assetSheet } = useAssetSheet();
 
   const rows = useMemo(
     () =>
@@ -141,7 +146,8 @@ export function BuyHold() {
 
       <div className="space-y-3">
         {held.map(({ h, s, price, value: v, open }) => (
-          <button key={h.id} className="card edge-core w-full p-4 text-left" onClick={() => setDetail(h)}>
+          <div key={h.id} className="space-y-2">
+          <button className="card edge-core w-full p-4 text-left" onClick={() => setDetail(h)}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate text-[16px] font-semibold text-stone-50">{h.name}</div>
@@ -157,6 +163,8 @@ export function BuyHold() {
             <div className="mt-1 text-[13px] text-stone-400">Kurs jetzt {price != null ? eur(price) : "–"} · gekauft für {eur(s.cost)}</div>
             <BlacktraderView h={h} />
           </button>
+          <ShipmasterTip h={h} onOpen={(a, hz) => openSheet(a, hz, { withEntry: true, tipOnly: true })} />
+          </div>
         ))}
         {sold.length > 0 && (
           <>
@@ -186,6 +194,7 @@ export function BuyHold() {
       <p className="text-[13px] text-stone-500">KESt geschätzt wie in Österreich: 27,5 % auf verkaufte Gewinne (gleitender Durchschnittspreis, Gebühren nicht abziehbar, Gewinne und Verluste eines Jahres verrechnet). Maßgeblich ist die Abrechnung deiner Bank.</p>
 
       <TxSheet form={form} onClose={() => setForm(null)} />
+      {assetSheet}
 
       <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail?.name ?? ""}>
         {detail && <HoldingDetail id={detail.id} onBuy={(h) => (setDetail(null), setForm({ mode: "buy", holding: h }))} onSell={(h) => (setDetail(null), setForm({ mode: "sell", holding: h }))} onDiv={(h) => (setDetail(null), setForm({ mode: "div", holding: h }))} onClose={() => setDetail(null)} />}

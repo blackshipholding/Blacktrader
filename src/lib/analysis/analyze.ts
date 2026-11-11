@@ -130,6 +130,7 @@ export function analyze(input: AnalyzeInput): AnalysisResult | null {
     relVolHigh: P.relVolHigh,
     relVolBreakout: P.relVolBreakout,
     relVolLow: P.relVolLow,
+    momentumWeight: P.momentumWeight ?? 0,
   });
   // Manuelle Gewichtung (Einstellungen) hat Vorrang, sonst die gelernte (Standard = 60/20/20)
   const weights = input.weights ?? P.weights ?? DEFAULT_WEIGHTS;

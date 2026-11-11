@@ -5,7 +5,7 @@
 import { openPositions } from "@/lib/client/nachkauf";
 import { ChanceRecord } from "@/components/ChanceRecord";
 import { ACCOUNT, canAfford, freeCash, noMoney } from "@/lib/client/account";
-import { OVER_BUDGET } from "@/lib/client/orderSlip";
+import { OVER_SHARE } from "@/lib/client/orderSlip";
 import { useEffect, useMemo, useState } from "react";
 import { signalStrength } from "@/components/AssetCard";
 import { EntryTile } from "@/components/EntryTile";
@@ -65,7 +65,8 @@ export default function ChancenPage() {
     return c;
   }, [scan.entries, group, held]);
 
-  const tradable = list.filter((e) => (e.best.color === "gruen" || e.best.color === "rot") && e.best.res).map((e) => ({ asset: e.asset, res: e.best.res! }));
+  // Shipmaster 0.1: Shorts nur als Info (nur im Bärenmarkt sichtbar) – nie übernehmen
+  const tradable = list.filter((e) => e.best.color === "gruen" && e.best.res).map((e) => ({ asset: e.asset, res: e.best.res! }));
 
   return (
     <div className="space-y-4">
@@ -141,7 +142,7 @@ export default function ChancenPage() {
           // Nur so viele, wie das Geld reicht (500 € + Gebühr je Trade) – dann einmal Bescheid geben
           for (const t of tradable) {
             const d = getData();
-            if (!canAfford(d.trades, d.accountResets, ACCOUNT.stake + OVER_BUDGET)) {
+            if (!canAfford(d.trades, d.accountResets, ACCOUNT.stake * (1 + OVER_SHARE))) {
               noMoney(freeCash(d.trades, d.accountResets));
               break;
             }

@@ -16,7 +16,8 @@ import { eurPerUnit } from "@/lib/fx";
 import { instrumentKey, useMarket } from "@/lib/client/market";
 import { actions, useAppData, type Trade } from "@/lib/store/store";
 import { HORIZON_LABEL } from "@/lib/types";
-import { ACCOUNT, computeAccount } from "@/lib/client/account";
+import { ACCOUNT, computeAccount, SHIPMASTER } from "@/lib/client/account";
+import { CapitalBox } from "@/components/CapitalBox";
 import { BuyHold } from "@/components/BuyHold";
 import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
@@ -190,7 +191,7 @@ export default function DepotPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] text-gold">Depot</h1>
-          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto: ${ACCOUNT.start.toLocaleString("de-DE")} € Start, ${ACCOUNT.stake.toLocaleString("de-DE")} € je Trade.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
+          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto nach Shipmaster ${SHIPMASTER.version}: 10 % vom Kontostand je Kauf.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
         </div>
         {tab === "bt" && <Legend />}
       </div>
@@ -217,6 +218,7 @@ function BlacktraderDepot() {
   // Tipp auf den Namen: dieselbe Ansicht wie in der Watchlist (Einstieg oben, darunter Chart und Analyse)
   const { open: openSheet, sheet } = useAssetSheet();
   const resets = useAppData((d) => d.accountResets);
+  const capital = useAppData((d) => d.settings.capitalEur);
   const [showOld, setShowOld] = useState(false);
   const notice = useAppData((d) => d.migrationNotice);
   const { live } = useMarket();
@@ -291,6 +293,8 @@ function BlacktraderDepot() {
           </div>
         </div>
       )}
+
+      <CapitalBox capital={capital} accountValue={acc.cash + acc.invested} />
 
       {acc.broke ? (
         <div className="card edge-short space-y-2 p-4 text-[15px]">

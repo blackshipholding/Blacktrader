@@ -44,7 +44,14 @@ export const expectText = (c: WaveCount | undefined, could = false) => {
 };
 
 /** Satz für den aktuellen Einstieg eines Werts */
-export function entryStatus(b: BestEntry, wave: WaveCount | undefined, cur?: string): Status {
+export function entryStatus(b: BestEntry, wave: WaveCount | undefined, cur?: string, amountEur?: number): Status {
+  const s = entryStatusBase(b, wave, cur);
+  if (amountEur != null && amountEur > 0 && (b.color === "gruen" || b.color === "blau"))
+    s.text = `${s.text ? s.text + " " : ""}Shipmaster: ${Math.round(amountEur).toLocaleString("de-DE")} €.`;
+  return s;
+}
+
+function entryStatusBase(b: BestEntry, wave: WaveCount | undefined, cur?: string): Status {
   // Kauf: von oben nach unten (Oberkante zuerst), Short: von unten nach oben
   const zone = (top?: number, bottom?: number) => {
     if (top == null || bottom == null) return null;

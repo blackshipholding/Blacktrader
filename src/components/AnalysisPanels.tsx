@@ -59,9 +59,6 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
           Roh-Signal „{SIGNAL_LABEL[a.decision.rawLevel]}“ neutralisiert: {a.decision.vetoes.join("; ")}.
         </div>
       )}
-      {sell && !shortAllowed && (
-        <p className="rounded-lg bg-amber-500/10 p-2 text-sm text-amber-100">Hinweis: Der Gesamtmarkt (S&P 500) ist gerade nicht bärisch. Blacktrader nimmt Shorts nur in bärischen Märkten als aktuellen Einstieg – dieser Short ist nur zur Information.</p>
-      )}
       {mode === "gelb" && <p className="rounded-lg bg-amber-500/10 p-2 text-sm text-amber-100">Blacktrader wartet: Gerade gibt es kein Szenario, das klar genug für einen Einstieg ist.</p>}
       {a.plan && ((expert && !main) || active) ? (
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
@@ -90,7 +87,9 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
         <p className="text-sm text-stone-400">Aktuell kein Einstieg geplant.</p>
       )}
       {/* Ohne onTrade (z. B. Kachel mit „übernehmen“ steht schon oben) kein zweiter Knopf */}
-      {active ? (
+      {sell ? (
+        <p className="rounded-lg bg-red-500/10 p-2 text-center text-sm text-red-200">Nur Info – Blacktrader handelt keine Shorts (Shipmaster 0.1).</p>
+      ) : active ? (
         onTrade && <button className="btn-primary w-full" onClick={onTrade}>
           {a.plan!.orderType === "limit" ? "Order in die Zone legen (Papier-Trade)" : "Als Papier-Trade übernehmen"}
         </button>

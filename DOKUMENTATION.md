@@ -320,3 +320,20 @@ Getestet (Härtetest, 191 Werte, 1963–2026, 10 Mio. Durchgänge à 5 Jahre, 8.
 ## Langfrist-Positionen: Vorschlag statt automatischem Verkauf
 
 Ändert sich die Wellenzählung einer blauen Position, verkauft Blacktrader im Depot nicht mehr selbst. Er zeigt einen **Vorschlag** als Order-Zettel für flatex (z. B. „Verkauf 5 Stück (bestens) · Stop-Loss für die restlichen 5 Stück: 44,10 € · wartende Kauf-Order 41,83 € löschen“) mit **„Bei flatex erledigt“** (Verkaufskurs in € eintragen, dann wird gebucht) und **„Ablehnen“** (Position bleibt, Meldung kommt nicht wieder). Läge ein neuer Stop nicht mindestens 0,5 % unter dem Kurs, wäre er bei flatex nicht möglich – dann lautet der Vorschlag „jetzt verkaufen“. Automatisch passiert nur, was flatex auch automatisch macht: wartende Limit-Kauforders (Teile) und ein bestätigter Stop-Loss. Unbestätigte Vorschläge werden nach 20 Stunden noch einmal gemeldet. Push bei geschlossener App: einmal täglich (Vercel-Cron 14:43 UTC); mit offener App alle 15 Minuten. Live-Bilanz und Turnier rechnen weiter mit Blacktraders eigenen Regeln.
+
+## Shipmaster 0.1 (Update 11.11.2026)
+
+Feste Geld-Regeln (Regelwerk A – Blacktrader ändert sie nie selbst), entstanden aus dem großen Härtetest (503 S&P-Aktien, 1990–2021, 100 × 1 Mio. Kunden; ab 10.000 € 13,9 % p. a., 1,9 % Kunden mit Verlust):
+
+- **Startkapital** trägt jeder Benutzer im **Depot** ein (Reiter „Blacktrader“, Feld „Mein Startkapital“; Standard 10.000 €). Unter 10.000 € handelt Blacktrader im Blacktrader-Konto nicht.
+- **Kontostand** = freies Geld + offene Positionen zum Kaufpreis (nach Gebühren und KESt; Gewinne zählen erst nach dem Verkauf).
+- **1. Kauf: 10 % vom Kontostand** (Blau in 3 Teilen, Grün eine Order) → rund 10 Positionen; wächst mit dem Konto (Zinseszins).
+- **Nachkauf** nur bei Blau, höchstens **2 × 2 %** vom Kontostand, erst wenn der Kurs die erste blaue Zone nach oben verlassen hat.
+- **Order-Zettel:** ganze Stück bis 10 % über dem Betrag.
+- **Blau-Regel aus** (im Härtetest ohne sie besser).
+- **Keine Shorts:** rote Signale stehen nur im Bärenmarkt als Info in den Chancen (ohne Übernehmen-Knopf, nicht im Konto, nicht in der Live-Bilanz); Turnier und EchoChart shorten nicht.
+- **Bestehende Käufe:** beim ersten Start nach dem Update werden wartende blaue Teile auf 10 % (Nachkauf 2 %) umgerechnet – Hinweis „bitte bei flatex anpassen“.
+- **Buy & Hold:** unter jeder Position Shipmasters Kachel wie in der Watchlist (Chart, Balken, Einstieg/Stop/Ziel); Antippen → Detailansicht mit Satz und Shipmaster-Betrag – nur Tipps, kein Übernehmen.
+- **Momentum-Messer** (12 Monate) als lernbarer Anteil im Volumen/RSI-Teil, Startgewicht 0 – der Trainer entscheidet.
+
+**Trainer:** Turnier mit 50 Zeiträumen × 5 Depotgrößen (10.000 € – 250.000 €), Shipmaster-Regeln für alle. Je Turnier 9 Gegner, die sich abwechseln (Pool aus 28: 5 Bots, 5 Bank-Analysten, 5 Strategien, 9 TradingView-Bots – Supertrend, RSI 30/70, MACD, Bollinger, EMA 9/21, Ichimoku, Parabolic SAR, Stochastik, ADX/DMI – und Golden Cross, Momentum, Blue-Chip-Korb, Niedrige Schwankung). Neue Prüfregeln: **B8 Härtetest** (rund 6.000 Kunden: jeder Wochen-Start × 12 Depotgrößen 10.000 € – 1 Mio. €; mind. +0,2 Punkte p. a.; beide Zeithälften, bärische Zeiträume, Verlust-Kunden, schlechteste 5 %, Ausfall-Prüfung 4 von 5, doppelte Gebühren + 0,5 % schlechtere Kurse; letzte 2 Jahre gesperrt, nur Schlusskontrolle in der Auswertung) und **B9 Gegner-Prüfung** (Rangplatz gegen die 9 Gegner darf nicht sinken). Lernzeit: 30 Min reicht nur zum Prüfen, zum Lernen 3 h oder 8 h.

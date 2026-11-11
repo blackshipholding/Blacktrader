@@ -20,7 +20,7 @@ import { actions, getData, useAppData, type Trade, type WatchItem } from "../sto
 import type { Candle, Fundamentals, Horizon, Interval, NewsItem, ResolvedAsset } from "../types";
 import { notify } from "./alerts";
 import { findLongTermZone, type LongTermZone } from "../analysis/longterm";
-import { backfillShares, checkLongTermWithCandles, trackLongTerm } from "./longterm";
+import { backfillShares, checkLongTermWithCandles, migrateShipmaster, trackLongTerm } from "./longterm";
 import { api } from "./api";
 import { binanceStream } from "./binanceWs";
 
@@ -102,6 +102,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     actions.pruneWatchHeld();
     backfillShares();
+    migrateShipmaster();
   }, []);
 
   // Langfrist-Positionen alle 15 Minuten mit ihren eigenen Kerzen prüfen (Wellenzählung, Invalidierung)

@@ -2,7 +2,7 @@
 // Langfrist-Positionen (blau) als Papier-Trades: Einstieg in drei Teilen, kein fester Stop.
 // Teilausstieg / Stop / Ausstieg NUR, wenn Blacktrader eine geänderte Zählung meldet (assessLongTerm) –
 // und erst, wenn der Nutzer den Vorschlag bei flatex umgesetzt und bestätigt hat (wie bei flatex selbst).
-import { fillShares, makeOrderSlip, OVER_BUDGET } from "./orderSlip";
+import { fillShares, makeOrderSlip, OVER_SHARE } from "./orderSlip";
 import { toEurReturn, tradeCurrency } from "./eur";
 import { eurPerUnit } from "../fx";
 import { analyzeElliott } from "../analysis/elliott";
@@ -204,7 +204,7 @@ export function refillWaiting(t: Trade): { tranches: NonNullable<Trade["tranches
   const rows = trancheRows(t);
   if (rows.length < 2 || rows.every((x) => x.filledAt) || rows.some((x) => !(x.qty > 0) || !(x.eur > 0))) return null;
   const budget = t.nachkauf ? ADD.stake : ACCOUNT.stake;
-  const q = fillShares(rows.map((x) => ({ priceEur: x.eur / x.qty, qty: x.qty, fixed: !!x.filledAt })), budget, budget + (OVER_BUDGET * budget) / 500);
+  const q = fillShares(rows.map((x) => ({ priceEur: x.eur / x.qty, qty: x.qty, fixed: !!x.filledAt })), budget, budget * (1 + OVER_SHARE));
   if (q.every((n, i) => n === rows[i].qty)) return null;
   const tranches = rows.map((x, i) => ({ price: x.price, filledAt: x.filledAt, qty: q[i], eur: q[i] * (x.eur / x.qty) }));
   const no = (i: number) => `Teil ${i + 1}`;
@@ -212,7 +212,7 @@ export function refillWaiting(t: Trade): { tranches: NonNullable<Trade["tranches
   return {
     tranches,
     stakeEur: tranches.reduce((a, x) => a + x.eur, 0),
-    note: `Neu berechnet (bis 550 € je Trade): ${changed.join(", ")} – bitte die wartende Order bei flatex anpassen.`,
+    note: `Neu berechnet (bis 10 % über dem Betrag): ${changed.join(", ")} – bitte die wartende Order bei flatex anpassen.`,
   };
 }
 
@@ -223,6 +223,43 @@ export function backfillShares() {
   if (d.migrations.includes(KEY)) return;
   for (const t of d.trades) {
     const r = refillWaiting(t);
+    if (r) actions.updateTrade(t.id, { tranches: r.tranches, stakeEur: r.stakeEur, lastActionText: r.note });
+  }
+  actions.addMigration(KEY);
+}
+
+/**
+ * Shipmaster 0.1 für bestehende Käufe: wartende Teile so neu berechnen, dass die Position 10 % vom Kontostand ergibt
+ * (Nachkauf: 2 %). Gekaufte Teile bleiben. Rückgabe: neue Teile + Hinweis „bitte bei flatex anpassen“, sonst null.
+ */
+export function reshipWaiting(t: Trade, budget: number): { tranches: NonNullable<Trade["tranches"]>; stakeEur: number; note: string } | null {
+  if (t.strategy !== "longterm" || t.status === "closed" || !(budget > 0)) return null;
+  const rows = trancheRows(t);
+  const waiting = rows.map((x, i) => (x.filledAt ? -1 : i)).filter((i) => i >= 0);
+  if (!waiting.length || rows.some((x) => !(x.eur > 0) && !!x.filledAt)) return null;
+  const unit = rows.map((x) => (x.qty > 0 && x.eur > 0 ? x.eur / x.qty : NaN));
+  if (waiting.some((i) => !(unit[i] > 0))) return null;
+  const filledEur = rows.reduce((a, x) => a + (x.filledAt ? x.eur : 0), 0);
+  const rest = budget - filledEur;
+  if (rest <= 0) return null;
+  const per = rest / waiting.length;
+  let q = rows.map((x, i) => (x.filledAt ? x.qty : t.kind === "crypto" ? Math.floor((per / unit[i]) * 1e4) / 1e4 : Math.floor(per / unit[i])));
+  if (t.kind !== "crypto") q = fillShares(rows.map((x, i) => ({ priceEur: unit[i] || 0, qty: q[i], fixed: !!x.filledAt })), budget, budget * (1 + OVER_SHARE));
+  if (q.every((n, i) => n === rows[i].qty)) return null;
+  const tranches = rows.map((x, i) => ({ price: x.price, filledAt: x.filledAt, qty: q[i], eur: x.filledAt ? x.eur : q[i] * unit[i] }));
+  const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const changed = rows.flatMap((x, i) => (q[i] !== x.qty ? [`Teil ${i + 1} jetzt ${q[i].toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück (${fmt(tranches[i].eur)} €)`] : []));
+  return { tranches, stakeEur: tranches.reduce((a, x) => a + x.eur, 0), note: `Shipmaster 0.1: ${changed.join(", ")} – bitte die wartende Order bei flatex anpassen.` };
+}
+
+/** Einmalig beim Update auf Shipmaster 0.1: alter Standard 8.000 € → 10.000 €; wartende blaue Teile auf 10 % (Nachkauf 2 %) */
+export function migrateShipmaster() {
+  const KEY = "v5-shipmaster-0.1";
+  const d = getData();
+  if (d.migrations.includes(KEY)) return;
+  if (d.settings.capitalEur === 8000) actions.setSettings({ capitalEur: 10000 });
+  for (const t of getData().trades) {
+    const r = reshipWaiting(t, t.nachkauf ? ADD.stake : ACCOUNT.stake);
     if (r) actions.updateTrade(t.id, { tranches: r.tranches, stakeEur: r.stakeEur, lastActionText: r.note });
   }
   actions.addMigration(KEY);

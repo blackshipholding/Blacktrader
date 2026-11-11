@@ -46,7 +46,7 @@ describe("Depot: eine Position je Wert (Erstkauf + Nachkauf)", () => {
     expect(group()).toHaveLength(0);
     const acc = computeAccount(getData().trades, [], () => null).at(-1)!;
     expect(acc.fees).toBeCloseTo(4 * 7.9, 6);
-    expect(acc.equity).toBeCloseTo(8000 + 100 - 4 * 7.9 - 100 * 0.275, 6);
+    expect(acc.equity).toBeCloseTo(10000 + 100 - 4 * 7.9 - 100 * 0.275, 6);
   });
 });
 
@@ -73,7 +73,7 @@ describe("Getrennte flatex-Depots: jeder Kauf eigene Position", () => {
     P.sellPosition([P.blueGroups(getData().trades).get("crypto:SOL")![0]], 2, 120, false);
     const acc = computeAccount(getData().trades, [], () => null).at(-1)!;
     expect(acc.fees).toBeCloseTo(4 * 7.9, 6); // 2 Käufe + 2 getrennte Verkäufe
-    expect(acc.equity).toBeCloseTo(8000 - 4 * 7.9, 6);
+    expect(acc.equity).toBeCloseTo(10000 - 4 * 7.9, 6);
     // neuer Kauf bekommt das zuletzt gewählte Depot
     actions.addTrade({ symbol: "ETH", name: "Ethereum", kind: "crypto", horizon: "long", interval: "1w", direction: "long", entry: 1, stop: 0, targets: [2], openedAt: 3, reason: "", score: 0, signal: "buy", pattern: "" } as never);
     expect(getData().trades.find((t) => t.symbol === "ETH")!.depot).toBe(3);

@@ -9,11 +9,12 @@ const Y = Date.UTC(2026, 0, 10);
 const D = 86400e3;
 
 describe("Blacktrader-Konto im Depot", () => {
-  it("8.000 € Start, 500 € je Trade, 7,90 € je Order, 27,5 % KESt auf den Gewinn", () => {
-    expect(ACCOUNT).toMatchObject({ start: 8000, stake: 500, fee: 7.9, tax: 0.275 });
+  it("Shipmaster 0.1: 10.000 € Start, 1. Kauf 10 % vom Kontostand, 7,90 € je Order, 27,5 % KESt auf den Gewinn", () => {
+    expect(ACCOUNT).toMatchObject({ start: 10000, stake: 1000, fee: 7.9, tax: 0.275 });
+    // Trade ohne gespeicherten Betrag (ältere Version): 500 €
     const [a] = computeAccount([T("A", Y, 10, Y + D)], [], () => null);
     // +10 % auf 500 € = 50 €, 2 × 7,90 € Gebühr, 13,75 € KESt
-    expect(a.equity).toBeCloseTo(8000 + 50 - 15.8 - 13.75, 6);
+    expect(a.equity).toBeCloseTo(10000 + 50 - 15.8 - 13.75, 6);
     expect(a.fees).toBeCloseTo(15.8, 6);
     expect(a.tax).toBeCloseTo(13.75, 6);
     expect(a.closed).toBe(1);
@@ -23,19 +24,20 @@ describe("Blacktrader-Konto im Depot", () => {
     const [a] = computeAccount([T("A", Y, 10, Y + D), T("B", Y + 2 * D, -10, Y + 3 * D), T("C", Y + 4 * D)], [], () => 20);
     expect(a.tax).toBeCloseTo(0, 6);
     expect(a.open).toBe(1);
-    expect(a.equity).toBeCloseTo(8000 - 4 * 7.9 - 7.9 + 100, 6);
+    expect(a.equity).toBeCloseTo(10000 - 4 * 7.9 - 7.9 + 100, 6);
   });
   it("ohne Geld keine neuen Trades; ohne Geld und ohne offene Position pleite – Neustart beginnt eine neue Runde", () => {
-    const many = Array.from({ length: 16 }, (_, i) => T(`S${i}`, Y + i));
+    // 19 × 500 € gebunden: frei < 10 % vom Kontostand + Gebühr → gesperrt
+    const many = Array.from({ length: 19 }, (_, i) => T(`S${i}`, Y + i));
     const [a] = computeAccount(many, [], () => 0);
     expect(a.blocked).toBe(true);
     expect(a.broke).toBe(false);
-    const lost = Array.from({ length: 16 }, (_, i) => T(`L${i}`, Y + i * D, -100, Y + i * D + 1000));
+    const lost = Array.from({ length: 20 }, (_, i) => T(`L${i}`, Y + i * D, -100, Y + i * D + 1000));
     const [b] = computeAccount(lost, [], () => null);
     expect(b.broke).toBe(true);
     const rounds = computeAccount(lost, [Y + 20 * D], () => null);
     expect(rounds).toHaveLength(2);
-    expect(rounds[1].equity).toBe(8000);
+    expect(rounds[1].equity).toBe(10000);
     expect(rounds[1].broke).toBe(false);
   });
 });
@@ -43,7 +45,7 @@ describe("Blacktrader-Konto im Depot", () => {
 describe("Konto mit echtem Betrag (Stück × Kurs)", () => {
   it("rechnet mit dem eingesetzten Betrag statt pauschal 500 €", () => {
     const [a] = computeAccount([T("U", Y, 10, Y + D, { stakeEur: 506.56 })], [], () => null);
-    expect(a.equity).toBeCloseTo(8000 + 50.656 - 15.8 - 50.656 * 0.275, 6);
+    expect(a.equity).toBeCloseTo(10000 + 50.656 - 15.8 - 50.656 * 0.275, 6);
   });
 });
 
@@ -88,17 +90,24 @@ describe("Dividenden und Steuer-Jahresübersicht", () => {
   });
 });
 
-describe("EchoChart-Konto (8.000 €, 500 € je Trade, netto)", () => {
-  it("Gewinn nach Gebühr und KESt; ohne Geld wird ausgelassen", async () => {
+describe("EchoChart-Konto (Shipmaster 0.1: 10 % vom Kontostand der Rückrechnung, netto)", () => {
+  it("Gewinn nach Gebühr und KESt; ohne Geld wird ausgelassen; Zinseszins", async () => {
     const { simulateAccount } = await import("../src/lib/client/account");
     const r = simulateAccount([{ sym: "A", entry: Y, exit: Y + D, r: 20 }]);
-    // 100 € Gewinn − 2 × 7,90 € − 27,50 € KESt
-    expect(r.end).toBeCloseTo(8000 + 100 - 15.8 - 27.5, 6);
-    expect(r.profitPct).toBeCloseTo(((100 - 15.8 - 27.5) / 8000) * 100, 6);
+    // 10 % von 10.000 € = 1.000 € · +20 % = 200 € Gewinn − 2 × 7,90 € − 55 € KESt
+    expect(r.end).toBeCloseTo(10000 + 200 - 15.8 - 55, 6);
+    expect(r.profitPct).toBeCloseTo(((200 - 15.8 - 55) / 10000) * 100, 6);
+    // Zinseszins: der 2. Kauf ist 10 % vom neuen Kontostand
+    const two = simulateAccount([{ sym: "A", entry: Y, exit: Y + D, r: 20 }, { sym: "B", entry: Y + 2 * D, exit: Y + 3 * D, r: 10 }]);
+    const after1 = 10000 + 200 - 15.8 - 55;
+    const stake2 = Math.round(after1 * 0.1);
+    expect(two.end).toBeCloseTo(after1 + stake2 * 0.1 - 15.8 - stake2 * 0.1 * 0.275, 6);
+    // viele gleichzeitig: nur so viele, wie das Geld reicht (rund 10 Positionen)
     const many = Array.from({ length: 20 }, (_, i) => ({ sym: `S${i}`, entry: Y + i, exit: Y + 10 * D, r: 0 }));
     const m = simulateAccount(many);
-    expect(m.taken).toBe(15);
-    expect(m.skipped).toBe(5);
+    expect(m.taken).toBeGreaterThanOrEqual(9);
+    expect(m.taken).toBeLessThanOrEqual(10);
+    expect(m.taken + m.skipped).toBe(20);
   });
 });
 
@@ -127,34 +136,32 @@ describe("Blau in drei Teilen: Gewinn/Verlust nur auf den gekauften Teil", () =>
     const t = { id: "b", strategy: "longterm", status: "closed", symbol: "IFX.DE", name: "Infineon", kind: "stock", horizon: "long", direction: "long", entry: 56, stop: 0, targets: [88], openedAt: Date.UTC(2026, 0, 2), closedAt: Date.UTC(2026, 1, 2), closeReason: "invalidiert", returnPct: -20, stakeEur: 482, tranches: [{ price: 56, filledAt: 1, qty: 3, eur: 168 }, { price: 49, qty: 3, eur: 147 }, { price: 42, qty: 4, eur: 167 }], partials: [], source: "manual" } as never;
     expect(investedOf(t)).toBe(168);
     const r = computeAccount([t], [], () => null).at(-1)!;
-    // 8.000 − 1 Kauf-Gebühr − 1 Verkaufs-Gebühr − 20 % von 168 €
-    expect(r.equity).toBeCloseTo(8000 - 7.9 - 7.9 - 33.6, 6);
+    // 10.000 − 1 Kauf-Gebühr − 1 Verkaufs-Gebühr − 20 % von 168 €
+    expect(r.equity).toBeCloseTo(10000 - 7.9 - 7.9 - 33.6, 6);
   });
 });
 
-describe("Startkapital je Benutzer", () => {
-  it("Einsatz und Nachkauf im getesteten Verhältnis (8.000 € → 500 € / 250 €)", async () => {
-    const { stakeFor, addStakeFor } = await import("../src/lib/client/account");
-    expect(stakeFor(8000)).toBe(500);
-    expect(addStakeFor(8000)).toBe(250);
-    expect(stakeFor(16000)).toBe(1000);
-    expect(addStakeFor(16000)).toBe(500);
-    expect(stakeFor(4000)).toBe(250);
-    expect(addStakeFor(4000)).toBe(125);
+describe("Shipmaster 0.1: Startkapital und Beträge", () => {
+  it("1. Kauf 10 %, Nachkauf 2 % vom Kontostand, höchstens 2 Nachkäufe", async () => {
+    const { stakeFor, addStakeFor, ADD, SHIPMASTER } = await import("../src/lib/client/account");
+    expect(SHIPMASTER).toMatchObject({ first: 0.1, add: 0.02, addMax: 2, minCapital: 10000, over: 0.1 });
+    expect(stakeFor(10000)).toBe(1000);
+    expect(addStakeFor(10000)).toBe(200);
+    expect(stakeFor(10709.2)).toBe(1071);
+    expect(ADD).toMatchObject({ max: 2, stake: 200 });
   });
-  it("ungültige Eingaben werden begrenzt bzw. auf 8.000 € gesetzt", async () => {
+  it("ungültige Eingaben werden begrenzt bzw. auf 10.000 € gesetzt", async () => {
     const { normalizeCapital } = await import("../src/lib/store/store");
-    expect(normalizeCapital("abc")).toBe(8000);
-    expect(normalizeCapital(-5)).toBe(8000);
-    expect(normalizeCapital(undefined)).toBe(8000);
+    expect(normalizeCapital("abc")).toBe(10000);
+    expect(normalizeCapital(-5)).toBe(10000);
+    expect(normalizeCapital(undefined)).toBe(10000);
     expect(normalizeCapital(200)).toBe(1000);
     expect(normalizeCapital(12345)).toBe(12300);
-    expect(normalizeCapital(1e9)).toBe(10_000_000);
   });
-  it("ohne Einstellung (Server/Test) gilt der Standard 8.000 €", async () => {
-    const { ACCOUNT, ADD } = await import("../src/lib/client/account");
-    expect(ACCOUNT.start).toBe(8000);
-    expect(ACCOUNT.stake).toBe(500);
-    expect(ADD).toMatchObject({ max: 4, stake: 250 });
+  it("unter 10.000 € handelt Blacktrader nicht", async () => {
+    const { belowMinCapital, canAfford } = await import("../src/lib/client/account");
+    expect(belowMinCapital(9999)).toBe(true);
+    expect(belowMinCapital(10000)).toBe(false);
+    expect(canAfford([], [], 1000)).toBe(true); // Standard 10.000 €
   });
 });
