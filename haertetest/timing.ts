@@ -1,0 +1,12 @@
+import { readFileSync } from "node:fs";
+import { backtestSeries } from "/home/user/Blacktrader/src/lib/trainer/engine";
+import { runLongTermEcho } from "/home/user/Blacktrader/src/lib/analysis/longterm";
+import { DEFAULT_PARAMS } from "/home/user/Blacktrader/src/lib/analysis/params";
+const raw: number[][] = JSON.parse(readFileSync("/tmp/claude-0/-home-user-Blacktrader/4a846118-24a7-55aa-85de-daff0330394a/scratchpad/ht/data/" + process.argv[2] + ".json", "utf8"));
+const daily = raw.map(([time, open, high, low, close, volume]) => ({ time, open, high, low, close, volume }));
+const from = Number(process.argv[3] ?? 0);
+const d = daily.filter((c) => c.time >= from);
+console.log("Tageskerzen", d.length);
+let t0 = Date.now();
+const r = backtestSeries({ name: "X", kind: "stock", horizon: "medium", interval: "1d", candles: d } as never, DEFAULT_PARAMS, { step: 1 });
+console.log("Tag:", r.trades.length, "Trades,", (Date.now() - t0) / 1000, "s");

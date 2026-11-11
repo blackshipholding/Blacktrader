@@ -1,5 +1,6 @@
 # Hinweise für Claude (Blacktrader)
 
+- **GESICHERT (Nutzer 11.11.2026): Shipmaster 0.1, Blacktrader (Analyse + Handel) und der Härtetest. Bevor ein Update eines dieser drei Dinge beeinflusst (auch indirekt, z. B. Zonen, Signale, Filter, Beträge, Trainer-Prüfungen), IMMER erst den Nutzer fragen und die Auswirkung erklären – nichts davon ohne OK ändern.** Sicherungs-Branch: `sicherung-shipmaster-0.1`; Härtetest-Skripte + Ergebnis: Ordner `haertetest/` (Kursdaten nicht im Repo).
 - Oberfläche auf Deutsch, einsteigerfreundlich. Feste Regeln nicht ändern: Elliott ≥ 60 %, Risiko-Logik, Geld-Regeln „Shipmaster 0.1“ (siehe unten: 10 % vom Kontostand je Kauf, Nachkauf nur Blau 2 × 2 %, Startkapital im Depot, Standard/Minimum 10.000 €).
 - Der Nutzer handelt bei flatex Österreich (Euro, Tradegate/gettex): 7,90 € je Order, 27,5 % KESt.
 - Neue Regeln erst ausgiebig testen und den Nutzer fragen, bevor sie eingebaut werden.
