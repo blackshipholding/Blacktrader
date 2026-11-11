@@ -22,6 +22,7 @@ import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
 import { PositionCard } from "@/components/PositionCard";
 import { blueGroups } from "@/lib/client/position";
+import { HeldStatus } from "@/components/StatusLine";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const signed = (x: number, d = 2) => `${x >= 0 ? "+" : ""}${x.toFixed(d).replace(".", ",")} %`;
@@ -95,6 +96,11 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
             <div className="text-[13px] text-stone-400">{t.status === "closed" ? "Ergebnis" : "Stand"}</div>
           </div>
         </div>
+        {t.status !== "closed" && (
+          <div className="mt-2">
+            <HeldStatus kind={t.kind} symbol={t.symbol} />
+          </div>
+        )}
         {stopHint && (
           <div className={`mt-2 rounded-lg px-2.5 py-1.5 text-[14px] ${stopHint.adjust ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-stone-300"}`}>
             {t.shares ? `${t.shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück · ` : ""}

@@ -10,6 +10,7 @@ import { eurPerUnit } from "@/lib/fx";
 import type { Trade } from "@/lib/store/store";
 import { ProposalBox } from "./ProposalBox";
 import { Sheet } from "./Sheet";
+import { HeldStatus } from "./StatusLine";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const qtyStr = (q: number) => q.toLocaleString("de-DE", { maximumFractionDigits: 4 });
@@ -62,6 +63,10 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
           <div className={`num text-[19px] font-semibold ${s.pct == null ? "text-amber-300" : s.pct >= 0 ? "text-up" : "text-down"}`}>{s.pct == null ? "–" : `${s.pct >= 0 ? "+" : ""}${s.pct.toFixed(2).replace(".", ",")} %`}</div>
           <div className="text-[13px] text-stone-400">Stand gesamt</div>
         </div>
+      </div>
+
+      <div className="mt-2">
+        <HeldStatus kind={first.kind} symbol={first.symbol} />
       </div>
 
       {group.map((t) => t.proposal && <ProposalBox key={`p${t.id}`} t={t} price={price} />)}

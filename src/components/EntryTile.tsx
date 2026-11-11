@@ -1,7 +1,7 @@
 "use client";
 // Kompakte Kachel: Name, Signalart, Abstand zur Zone, Mini-Chart (Elliott-Wellen, Richtung, Zone, alte Einstiege grau),
-// Einstieg/Stop/Ziel. Bewusst ohne Texte – Begründung, Wellen-Beschreibung, Risiko-Hinweis und „worauf Blacktrader
-// wartet“ stehen in den Details (Antippen), dort auch „übernehmen“.
+// ein Satz (StatusLine: was Blacktrader sieht, was als Nächstes kommen könnte), bei Gelb der Stimmungs-Balken,
+// Einstieg/Stop/Ziel. Begründung, Wellenzählung und „übernehmen“ stehen in den Details (Antippen).
 import { displayCurrency } from "@/lib/client/eur";
 import { money } from "@/lib/analysis/persona";
 import type { LiveStatus } from "@/lib/client/market";
@@ -11,6 +11,8 @@ import { COLOR_LABEL, signalStrength } from "./AssetCard";
 import { MiniChart } from "./MiniChart";
 import { miniView } from "./miniView";
 import { StatusPill } from "./StatusPill";
+import { NeutralGauge } from "./NeutralGauge";
+import { entryStatus, StatusLine, waveOf } from "./StatusLine";
 
 const EDGE = { blau: "edge-core", gruen: "edge-trade", rot: "edge-short", gelb: "edge-wait" } as const;
 const BADGE = { blau: "badge-core", gruen: "badge-trade", rot: "badge-short", gelb: "badge-wait" } as const;
@@ -71,6 +73,13 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
       {chart && view && view.candles.length > 4 && (
         <div className="mt-2">
           <MiniChart candles={view.candles} plan={b?.color === "gruen" || short ? b?.plan : null} best={view.best} longterm={lt} past={(entry?.history.past ?? []).slice(0, 10)} height={84} from={view.from} />
+        </div>
+      )}
+
+      {b && entry && (
+        <div className="mt-2 space-y-2">
+          <StatusLine compact s={entryStatus(b, waveOf(entry), cur)} />
+          {b.color === "gelb" && <NeutralGauge score={b.res?.total ?? entry.horizons.medium?.res.total ?? entry.horizons.long?.res.total} />}
         </div>
       )}
 

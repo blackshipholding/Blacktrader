@@ -33,4 +33,12 @@ export function waveCaption(c: WaveCount | undefined, neutral = false): string |
   return `Blacktrader zählt: ${parts.join(", ")} – als Nächstes ${next} erwartet.`;
 }
 
+/** Einfach für Anfänger, ohne Wellennummern: „ein Anstieg“, „ein Rückgang“, „eine Korrektur nach unten“ */
+export function nextPhrase(c: WaveCount | undefined): string | null {
+  if (!c) return null;
+  const nx = nextWave(c);
+  if (nx.label === "Korrektur") return `eine Korrektur nach ${nx.dir === 1 ? "oben" : "unten"}`;
+  return nx.dir === 1 ? "ein Anstieg" : "ein Rückgang";
+}
+
 export { arrow };

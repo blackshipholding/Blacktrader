@@ -12,6 +12,7 @@ import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client
 import { toEur } from "@/lib/fx";
 import { actions, useAppData } from "@/lib/store/store";
 import type { ResolvedAsset } from "@/lib/types";
+import { expectText, StatusLine, waveOf } from "./StatusLine";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const pct = (x: number) => `${x > 0 ? "+" : ""}${x.toFixed(2).replace(".", ",")} %`;
@@ -59,8 +60,8 @@ function BlacktraderView({ h }: { h: Holding }) {
   if (!e) return <div className="mt-1 text-[13px] text-stone-500">{scan.busy ? "Blacktrader rechnet …" : "Blacktrader: noch keine Analyse"}</div>;
   const t = holdTrend(e);
   return (
-    <div className={`mt-1.5 rounded-lg px-2.5 py-1.5 text-[13px] ${t === -1 ? "bg-red-500/15 text-red-200" : "bg-white/5 text-stone-300"}`}>
-      Blacktrader: großer Trend {t === 1 ? "steigend ↑" : t === -1 ? "fallend ↓ – Achtung, prüfe deine Position" : "unklar"} · aktuell {COLOR_LABEL[e.best.color]}
+    <div className="mt-1.5">
+      <StatusLine compact s={{ tone: t === -1 ? "warn" : "info", title: t === 1 ? "Großer Trend steigend." : t === -1 ? "Großer Trend fallend – prüfe deine Position." : "Großer Trend unklar.", text: expectText(waveOf(e)) }} />
     </div>
   );
 }

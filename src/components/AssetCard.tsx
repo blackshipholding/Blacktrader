@@ -24,6 +24,7 @@ import { MarketNote } from "./DepotPicker";
 import { StatusPill } from "./StatusPill";
 import { ADD } from "@/lib/client/account";
 import { NeutralGauge } from "./NeutralGauge";
+import { entryStatus, StatusLine } from "./StatusLine";
 
 const RISK_LIMIT = 15; // % Abstand Einstieg–Stop, ab dem "Hohes Risiko" angezeigt wird
 
@@ -163,11 +164,8 @@ export function AssetCard({
         <>
           {/* Zeile 2: Chart mit aktuellem Einstieg, alte Einstiege grau */}
           <MiniChart candles={mv?.candles ?? view.candles} plan={plan} best={wave} longterm={ltMini} past={pastChart} from={mv?.from} />
-          {lt ? (
-            <p className="-mt-1 text-[13px] text-sky-200">Welle 1 fertig – erwartet: Rücksetzer (Welle 2) in den blauen Bereich, danach Welle 3.</p>
-          ) : (
-            waveCaption(wave) && <p className={`-mt-1 text-[13px] ${b.color === "gelb" ? "text-amber-200" : "text-stone-400"}`}>{waveCaption(wave, b.color === "gelb")}</p>
-          )}
+          {/* Wellenzählung nur in der Expertenansicht (Anfänger: ein Satz weiter unten) */}
+          {expert && (lt ? <p className="-mt-1 text-[13px] text-sky-200">Welle 1 fertig – erwartet: Rücksetzer (Welle 2) in den blauen Bereich, danach Welle 3.</p> : waveCaption(wave) && <p className="-mt-1 text-[13px] text-stone-400">{waveCaption(wave)}</p>)}
 
           {/* Zeile 3 */}
           {plan ? (
@@ -207,13 +205,20 @@ export function AssetCard({
               </div>
             </div>
           ) : (
-            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[15px] text-amber-100">{b.waitFor ?? b.reason}</p>
+            <StatusLine s={entryStatus(b, wave, cur)}>
+              <span className="mt-1 block text-[14px]">{b.waitFor ?? b.reason}</span>
+            </StatusLine>
           )}
 
           {b.color !== "gelb" ? <ScenarioBar elliott={res?.elliott} /> : <NeutralGauge score={res?.total} />}
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
-          {(b.color === "gruen" || b.color === "rot") && <p className="text-[14px] text-stone-300">{b.reason}</p>}
+          {(b.color === "gruen" || b.color === "rot") && (
+            <StatusLine s={entryStatus(b, wave, cur)}>
+              <span className="mt-1 block text-[14px] opacity-90">{b.reason}</span>
+            </StatusLine>
+          )}
+          {b.color === "blau" && <StatusLine s={entryStatus(b, wave, cur)} />}
 
           {expert && res && (
             <div className="rounded-xl border border-gold/20 bg-black/30 px-3 py-2 text-[13px] text-stone-300">
