@@ -333,7 +333,7 @@ interface Strat { id: string; name: string; group: string; sizing: Sizing; trade
 const strategies: Strat[] = [];
 // stateful: Strategie beschreibt einen Zustand (Rangliste, Index drin/draußen) → Kunde übernimmt beim Start, was sie gerade hält
 const STATEFUL = new Set(["momentum", "hi52", "lowvol", "bluechip", "sector", "may", "blood", "jan", "trendIdx"]);
-const add = (id: string, name: string, group: string, sizing: Sizing, trades: Tr[]) => strategies.push({ id, name, group, sizing, trades, stateful: STATEFUL.has(id), interest: id === "v_int" ? 0.02 : 0 });
+const add = (id: string, name: string, group: string, sizing: Sizing, trades: Tr[]) => strategies.push({ id, name, group, sizing, trades, stateful: STATEFUL.has(id), interest: id === "v_int" ? 0.02 : id === "P7" ? Number(process.env.INT ?? 0) : 0 });
 const per = (f: (s: number) => Tr[]) => { const o: Tr[] = []; for (let s = 0; s < S; s++) o.push(...f(s)); return o; };
 
 add("bt_new", "Blacktrader – neue Regeln (6 % + 2 × 2 %, Blau ohne Verlust-Verkauf)", "Blacktrader", "btNew", btNew);
@@ -482,7 +482,7 @@ const yearOf = (i: number) => new Date(cal[Math.min(i, END)] * 1000).getUTCFullY
 interface Res { end: number; broke: boolean; fees: number; tax: number; n: number; low: number }
 
 function exitValue(t: Tr, w1: number): { at: number; px: number } {
-  if (t.res) return { at: Math.min(t.x, w1), px: t.pe };
+  if (t.res) { const at = Math.min(t.x, w1); const i = Number(process.env.INT ?? 0); return { at, px: t.pe * Math.pow(1 + i, (cal[Math.min(at, END)] - cal[Math.min(t.e, END)]) / (365 * DAY)) }; }
   const sl = STRESS ? (t.short ? 1.005 : 0.995) : 1;
   if (t.x <= w1 && t.px === t.px) return { at: t.x, px: t.px * sl };
   return { at: w1, px: priceIdx(t.s, w1) * sl };
@@ -698,7 +698,7 @@ const out: Record<string, { end: Float64Array; broke: Uint8Array; fees: Float64A
 const t0 = Date.now();
 const PART = process.env.PART?.split("/").map(Number);
 const AGG = !!process.env.AGG;
-const tag = (process.env.SIG ? process.env.SIG + "_" : "") + (process.env.POS ? "pos" + process.env.POS + (process.env.NORES ? "nores" : "") + "_" : "") + (process.env.SUPPSIG ? "supp" + process.env.SUPPSIG + "_" : "") + (QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f");
+const tag = (process.env.SIG ? process.env.SIG + "_" : "") + (process.env.POS ? "pos" + process.env.POS + (process.env.NORES ? "nores" : "") + (process.env.INT ? "int" + process.env.INT : "") + "_" : "") + (process.env.SUPPSIG ? "supp" + process.env.SUPPSIG + "_" : "") + (QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f");
 const dropped = (sym: string, seed: number) => { let h = 2166136261 ^ seed; for (let i = 0; i < sym.length; i++) h = Math.imul(h ^ sym.charCodeAt(i), 16777619); return ((h >>> 0) % 100) < 20; };
 for (const [si, st] of strategies.entries()) {
   if (AGG) {
