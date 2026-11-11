@@ -13,6 +13,7 @@ import { api } from "@/lib/client/api";
 import { useAppData } from "@/lib/store/store";
 import type { Fundamentals, NewsItem } from "@/lib/types";
 import { ScoreBar, SignalBadge } from "./ui";
+import { NeutralGauge } from "./NeutralGauge";
 
 /**
  * Punkte-System passend zum Hauptszenario (Blau hat eigene Punkte: LongTermSignalCard):
@@ -53,7 +54,7 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
       <ScoreBar value={inv(a.elliott.score)} label={expert ? `Elliott (${Math.round((w.elliott / sum) * 100)} %)` : mode === "rot" ? "Chartbild (fallend)" : "Chartbild"} />
       <ScoreBar value={inv(a.fundamental.score)} label={expert ? `Fundamental/News (${Math.round((w.fundamental / sum) * 100)} %)` : mode === "rot" ? "Firmenzahlen & Nachrichten (Schwäche)" : "Firmenzahlen & Nachrichten"} />
       <ScoreBar value={inv(a.volume.score)} label={expert ? `Volumen/RSI (${Math.round((w.volume / sum) * 100)} %)` : mode === "rot" ? "Verkaufsdruck" : "Kaufinteresse"} />
-      {mode !== "gelb" && <ScenarioBar elliott={a.elliott} />}
+      {mode !== "gelb" ? <ScenarioBar elliott={a.elliott} /> : <NeutralGauge score={a.total} />}
       {expert && a.decision.vetoes.length > 0 && (
         <div className="rounded-lg border border-gold/20 bg-black/40 p-2 text-xs text-stone-300">
           Roh-Signal „{SIGNAL_LABEL[a.decision.rawLevel]}“ neutralisiert: {a.decision.vetoes.join("; ")}.
