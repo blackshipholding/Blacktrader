@@ -209,7 +209,7 @@ export function AssetCard({
             <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[15px] text-amber-100">{b.waitFor ?? b.reason}</p>
           )}
 
-          {b.color !== "gelb" && <ScenarioBar elliott={res?.elliott} />}
+          <ScenarioBar elliott={res?.elliott} neutral={b.color === "gelb"} />
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
           {(b.color === "gruen" || b.color === "rot") && <p className="text-[14px] text-stone-300">{b.reason}</p>}

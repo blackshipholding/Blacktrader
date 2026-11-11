@@ -31,3 +31,17 @@ export function scenarioShare(e: Pick<ElliottResult, "best" | "alternative" | "c
   const main = sum > 0 ? pb / sum : 1;
   return { main, alt: 1 - main, opposite: !!a && a.bias !== b.bias, state: e.contested ? "notfall" : "gilt" };
 }
+
+/**
+ * Nur für Gelb (neutral, kein Einstieg): Einschätzung steigend gegen fallend aus Haupt- und Alternativzählung
+ * (Anteile nach Regel-Passung, zusammen 100 %). Wie oben: keine kalibrierte Wahrscheinlichkeit, reine Anzeige.
+ */
+export function bullBearShare(e: Pick<ElliottResult, "best" | "alternative"> | null | undefined): { up: number; down: number } | null {
+  const b = e?.best;
+  if (!b) return null;
+  const counts = [b, e.alternative].filter((c): c is NonNullable<typeof c> => !!c && c.probability > 0);
+  const total = counts.reduce((x, c) => x + c.probability, 0);
+  if (!(total > 0)) return null;
+  const up = counts.filter((c) => c.bias === 1).reduce((x, c) => x + c.probability, 0) / total;
+  return { up, down: 1 - up };
+}

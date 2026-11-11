@@ -53,7 +53,7 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
       <ScoreBar value={inv(a.elliott.score)} label={expert ? `Elliott (${Math.round((w.elliott / sum) * 100)} %)` : mode === "rot" ? "Chartbild (fallend)" : "Chartbild"} />
       <ScoreBar value={inv(a.fundamental.score)} label={expert ? `Fundamental/News (${Math.round((w.fundamental / sum) * 100)} %)` : mode === "rot" ? "Firmenzahlen & Nachrichten (Schwäche)" : "Firmenzahlen & Nachrichten"} />
       <ScoreBar value={inv(a.volume.score)} label={expert ? `Volumen/RSI (${Math.round((w.volume / sum) * 100)} %)` : mode === "rot" ? "Verkaufsdruck" : "Kaufinteresse"} />
-      <ScenarioBar elliott={a.elliott} />
+      <ScenarioBar elliott={a.elliott} neutral={mode === "gelb"} />
       {expert && a.decision.vetoes.length > 0 && (
         <div className="rounded-lg border border-gold/20 bg-black/40 p-2 text-xs text-stone-300">
           Roh-Signal „{SIGNAL_LABEL[a.decision.rawLevel]}“ neutralisiert: {a.decision.vetoes.join("; ")}.
