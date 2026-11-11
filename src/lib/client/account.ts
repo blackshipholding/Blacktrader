@@ -8,12 +8,13 @@
 //  • 7,90 € Gebühr je Order (flatex), 27,5 % KESt sofort bei Gewinn mit Verlustausgleich im selben Kalenderjahr
 // Reicht das Geld nicht für einen neuen Trade, wird nichts übernommen. Ohne Geld UND ohne offene Position ist das Konto
 // leer (pleite) – Neustart mit dem Startkapital; alte Trades bleiben als frühere Runde sichtbar.
+import { SHIP_PROTECT } from "../analysis/longterm";
 import type { AppData, Trade } from "../store/store";
 import { KestYear } from "../analysis/kest";
 import { getData, normalizeCapital } from "../store/store";
 
 /** Shipmaster 0.1 – feste Geld-Regeln */
-export const SHIPMASTER = Object.freeze({ version: "0.1", first: 0.1, add: 0.02, addMax: 2, minCapital: 10000, over: 0.1 });
+export const SHIPMASTER = Object.freeze({ version: "0.2", first: 0.1, add: 0.02, addMax: 2, minCapital: 10000, over: 0.1, protectGain: SHIP_PROTECT.gain });
 /** Betrag für Trades ohne gespeicherten Einsatz (ältere Versionen) */
 const LEGACY_STAKE = 500;
 /** Unter diesem Einsatz je Trade fressen die festen 7,90 € je Order einen großen Teil des Gewinns */

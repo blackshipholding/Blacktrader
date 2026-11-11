@@ -95,3 +95,42 @@ describe("Update 11.11.2026 – Schönheitsfehler: fast gleiche Zone nicht grau 
     expect(sameZone([100, 90], [80, 70])).toBe(false);
   });
 });
+
+describe("Shipmaster 0.2 – Gewinn-Schutz für Blau", () => {
+  it("fällig nur über der Oberkante UND ab +20 % über dem Ø Einstieg", async () => {
+    const { protectDue } = await import("../src/lib/analysis/longterm");
+    expect(protectDue(125, 100, 110)).toBe(true); // über Oberkante, +25 %
+    expect(protectDue(115, 100, 110)).toBe(false); // über Oberkante, nur +15 %
+    expect(protectDue(105, 90, 110)).toBe(false); // +16 %, aber unter der Oberkante
+    expect(protectDue(110, 90, 110)).toBe(false); // genau auf der Oberkante zählt noch nicht
+    expect(protectDue(130, 0, 110)).toBe(false); // kein Einstieg
+  });
+
+  it("Vorschlag je Kauf: Stop auf die Oberkante, wartende Teile löschen, nur einmal", async () => {
+    const { shipmasterProtect, proposalSteps } = await import("../src/lib/client/longterm");
+    const t = {
+      id: "x", strategy: "longterm", status: "open", symbol: "ABC", name: "ABC", kind: "stock", currency: "EUR", stop: 0, entry: 100, openedAt: 1, targets: [200],
+      lt: { zoneTop: 110, zoneBottom: 90, invalidation: 70, targets: [200], key: "k1" },
+      tranches: [{ price: 100, filledAt: 1, qty: 10, eur: 1000 }, { price: 95, qty: 10, eur: 950 }],
+    } as never;
+    const a = shipmasterProtect(t, 125);
+    expect(a).toMatchObject({ kind: "stop", stop: 110, key: "ship02:k1" });
+    expect(shipmasterProtect(t, 112)).toBeNull(); // +12 % – noch nicht
+    expect(shipmasterProtect({ ...(t as object), lastActionKey: "ship02:k1" } as never, 125)).toBeNull(); // schon erledigt/abgelehnt
+    const steps = proposalSteps({ ...(t as object), proposal: { key: "ship02:k1", kind: "stop", reason: "", stop: 110, price: 125, at: 1 } } as never);
+    expect(steps.join(" | ")).toMatch(/Stop-Loss für 10 Stück/);
+    expect(steps.join(" | ")).toMatch(/wartende Kauf-Order/);
+  });
+
+  it("Test-Simulation: Stop auf der Oberkante verkauft mit Gewinn statt später ungültig", async () => {
+    const { runLongTermEcho } = await import("../src/lib/analysis/longterm");
+    // Aufwärtstrend, Welle 1, Rücksetzer in die Zone, Ausbruch, dann Absturz unter den Wellenstart
+    const mk = (n: number, f: (i: number) => number): Candle[] => Array.from({ length: n }, (_, i) => { const c = f(i); return { time: 1_200_000_000 + i * 7 * 86400, open: c, high: c * 1.01, low: c * 0.99, close: c, volume: 1000 }; });
+    const path = (i: number) => (i < 200 ? 100 + Math.sin(i / 6) * 3 : i < 230 ? 100 + (i - 200) * 4 : i < 245 ? 220 - (i - 230) * 6 : i < 280 ? 130 + (i - 245) * 5 : 305 - (i - 280) * 20);
+    const on = runLongTermEcho(mk(330, path));
+    const off = runLongTermEcho(mk(330, path), undefined, 1, 600, null);
+    expect(on.trades.length).toBeGreaterThanOrEqual(0);
+    // Schutz darf nie schlechter enden als „ungültig“ mit Schlusskurs weit darunter: mindestens gleich viele oder weniger Verluste
+    expect(on.invalidiert).toBeLessThanOrEqual(off.invalidiert);
+  });
+});

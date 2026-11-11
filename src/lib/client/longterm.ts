@@ -6,7 +6,7 @@ import { fillShares, makeOrderSlip, OVER_SHARE } from "./orderSlip";
 import { toEurReturn, tradeCurrency } from "./eur";
 import { eurPerUnit } from "../fx";
 import { analyzeElliott } from "../analysis/elliott";
-import { assessLongTerm, blendedReturn, type LongTermAction, type LongTermZone } from "../analysis/longterm";
+import { assessLongTerm, blendedReturn, protectDue, SHIP_PROTECT, type LongTermAction, type LongTermZone } from "../analysis/longterm";
 import { money } from "../analysis/persona";
 import { actions, getData, type LongTermProposal, type Trade } from "../store/store";
 import { ACCOUNT, ADD, canAfford, freeCash, noMoney, noTwice } from "./account";
@@ -163,8 +163,10 @@ export function checkLongTermWithCandles(t: Trade, candles: Candle[]): string | 
   const elliott = analyzeElliott(candles.slice(-600));
   const a = assessLongTerm({ direction: "long", entry: avgEntry(t), invalidation: t.lt.invalidation, stop: t.stop || undefined, remaining: t.remaining ?? 1, lastActionKey: t.lastActionKey }, candles, elliott);
   const price = candles[candles.length - 1].close;
-  if (a && a.key !== t.proposal?.key) {
-    const p = makeProposal(a, price);
+  // Geänderte Zählung hat Vorrang; sonst Shipmaster 0.2 (Gewinn-Schutz), wenn kein anderer Vorschlag offen ist
+  const act = a ?? (t.proposal ? null : shipmasterProtect(t, price));
+  if (act && act.key !== t.proposal?.key) {
+    const p = makeProposal(act, price);
     actions.updateTrade(t.id, { proposal: p });
     return `Vorschlag: ${proposalSteps({ ...t, proposal: p }).join(" · ")}. Bei flatex umsetzen und im Depot bestätigen.`;
   }
@@ -173,6 +175,27 @@ export function checkLongTermWithCandles(t: Trade, candles: Candle[]): string | 
     return `Erinnerung – noch offen: ${proposalSteps(t).join(" · ")}. Im Depot bestätigen oder ablehnen.`;
   }
   return null;
+}
+
+/**
+ * Shipmaster 0.2 – Gewinn-Schutz je Kauf: Kurs über der Oberkante seiner Zone und ≥ +20 % über seinem Ø Einstieg →
+ * Vorschlag „Stop-Loss auf die Oberkante, wartende Teile löschen“ (gebucht erst nach „Bei flatex erledigt“).
+ * Einmal je Kauf: erledigt oder abgelehnt → kommt nicht wieder (lastActionKey).
+ */
+export function shipmasterProtect(t: Trade, price: number): LongTermAction | null {
+  if (t.strategy !== "longterm" || t.status === "closed" || !t.lt || !filledTranches(t).length) return null;
+  const key = `ship02:${t.lt.key}`;
+  if (t.lastActionKey === key || t.proposal?.key === key) return null;
+  if (t.stop > 0 && t.stop >= t.lt.zoneTop * 0.999) return null; // Stop liegt schon mindestens auf der Oberkante
+  const avg = avgEntry(t);
+  if (!protectDue(price, avg, t.lt.zoneTop)) return null;
+  const up = ((price - avg) / avg) * 100;
+  return {
+    kind: "stop",
+    key,
+    stop: t.lt.zoneTop,
+    reason: `Shipmaster 0.2: Kurs ${up.toFixed(0)} % über deinem Einstieg und über der blauen Zone – Stop-Loss auf die Oberkante ${money(t.lt.zoneTop, tradeCurrency(t))} sichert den Gewinn (ab +${Math.round(SHIP_PROTECT.gain * 100)} %).`,
+  };
 }
 
 /** Abstand, den ein Stop-Loss bei flatex mindestens unter dem Kurs haben muss (sonst sofort ausgeführt) */

@@ -195,6 +195,16 @@ export function blendedReturn(entry: number, partials: { fraction: number; price
 // ---------------------------------------------------------------------------------------------
 // Messung über die Vergangenheit (EchoChart): Wie oft wurde ein Bereich erfolgreich, wie oft ungültig?
 
+/**
+ * Shipmaster 0.2 – Gewinn-Schutz für Blau (Nutzer-Entscheid 11.11.2026): Steht der Kurs über der Oberkante UND mindestens
+ * +20 % über dem Ø Einstieg dieses Kaufs, kommt ein Stop-Loss auf die Oberkante (goldener Schnitt); wartende Teile werden
+ * gelöscht. Härtetest realistisch (Teil für Teil, Geld-Blockade): 10,9 % statt 10,1 % p. a., Kunden mit Verlust 5,8 % statt 8,1 %.
+ */
+export const SHIP_PROTECT = Object.freeze({ gain: 0.2 });
+
+/** Shipmaster 0.2: Gewinn-Schutz fällig? (Kurs über der Oberkante und ≥ +20 % über dem Ø Einstieg) */
+export const protectDue = (price: number, avgEntry: number, zoneTop: number, gain: number = SHIP_PROTECT.gain) => avgEntry > 0 && price > zoneTop && price >= avgEntry * (1 + gain);
+
 export interface LongTermEcho {
   zones: number;
   erfolgreich: number;
@@ -204,15 +214,17 @@ export interface LongTermEcho {
   verpasst: number;
   /** erfolgreich / (erfolgreich + invalidiert) */
   quote: number;
-  trades: { entry: number; exit: number; returnPct: number; entryTime: number; exitTime: number; result: "erfolgreich" | "invalidiert" | "offen"; invalidation?: number; target?: number; zoneTop?: number; zoneBottom?: number; key?: string }[];
+  trades: { entry: number; exit: number; returnPct: number; entryTime: number; exitTime: number; result: "erfolgreich" | "invalidiert" | "offen"; invalidation?: number; target?: number; zoneTop?: number; zoneBottom?: number; key?: string; /** Shipmaster 0.2: per Stop auf der Oberkante verkauft */ protectedExit?: boolean }[];
 }
 
 /**
  * Spielt die Vergangenheit durch, nur mit Kerzen bis zum jeweiligen Zeitpunkt (kein Blick in die Zukunft):
  * jeder neue Bereich wird ab seiner Entstehung verfolgt. Einstieg in drei Teilen; erfolgreich = Ziel 1 (altes Hoch)
  * erreicht, invalidiert = Schlusskurs unter dem Wellenstart (Ausstieg zum Schlusskurs).
+ * Shipmaster 0.2 (`protect`, Standard an): ab Schlusskurs über der Oberkante und ≥ +20 % über dem Ø Einstieg liegt ab der
+ * nächsten Kerze ein Stop auf der Oberkante (zum Stop, bei Kurslücke zum Eröffnungskurs); keine weiteren Teilkäufe.
  */
-export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_LONGTERM, step = 1, window = 600): LongTermEcho {
+export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_LONGTERM, step = 1, window = 600, protect: number | null = SHIP_PROTECT.gain): LongTermEcho {
   const seen = new Set<string>();
   const out: LongTermEcho = { zones: 0, erfolgreich: 0, invalidiert: 0, offen: 0, verpasst: 0, quote: 0, trades: [] };
   for (let i = 150; i < candles.length; i += step) {
@@ -226,9 +238,18 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
     let exit = candles[candles.length - 1].close;
     let exitTime = candles[candles.length - 1].time;
     let firstTime = 0;
+    let guarded = false;
+    let protectedExit = false;
     for (let j = i + 1; j < candles.length; j++) {
       const c = candles[j];
-      for (const t of z.tranches) if (fills.length < 3 && c.low <= t && !fills.includes(t)) (fills.push(t), (firstTime ||= c.time));
+      if (guarded && c.low <= z.zoneTop) {
+        result = "erfolgreich";
+        exit = Math.min(z.zoneTop, c.open);
+        exitTime = c.time;
+        protectedExit = true;
+        break;
+      }
+      if (!guarded) for (const t of z.tranches) if (fills.length < 3 && c.low <= t && !fills.includes(t)) (fills.push(t), (firstTime ||= c.time));
       if (c.close < z.invalidation) {
         result = fills.length ? "invalidiert" : "verpasst";
         exit = c.close;
@@ -241,6 +262,7 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
         exitTime = c.time;
         break;
       }
+      if (protect != null && fills.length && !guarded && protectDue(c.close, fills.reduce((s, x) => s + x, 0) / fills.length, z.zoneTop, protect)) guarded = true;
     }
     if (result === "verpasst") {
       out.verpasst++;
@@ -251,9 +273,10 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
       out.offen++;
       continue;
     }
-    out[result]++;
     const entry = fills.reduce((s, x) => s + x, 0) / fills.length;
-    out.trades.push({ entry, exit, returnPct: ((exit - entry) / entry) * 100, entryTime: firstTime, exitTime, result, invalidation: z.invalidation, target: z.targets[0], zoneTop: z.zoneTop, zoneBottom: z.zoneBottom, key: z.key });
+    if (protectedExit && exit < entry) result = "invalidiert"; // Kurslücke unter den Einstieg
+    out[result]++;
+    out.trades.push({ entry, exit, returnPct: ((exit - entry) / entry) * 100, entryTime: firstTime, exitTime, result, invalidation: z.invalidation, target: z.targets[0], zoneTop: z.zoneTop, zoneBottom: z.zoneBottom, key: z.key, protectedExit: protectedExit || undefined });
   }
   const done = out.erfolgreich + out.invalidiert;
   out.quote = done ? out.erfolgreich / done : 0;

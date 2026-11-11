@@ -321,6 +321,16 @@ Getestet (Härtetest, 191 Werte, 1963–2026, 10 Mio. Durchgänge à 5 Jahre, 8.
 
 Ändert sich die Wellenzählung einer blauen Position, verkauft Blacktrader im Depot nicht mehr selbst. Er zeigt einen **Vorschlag** als Order-Zettel für flatex (z. B. „Verkauf 5 Stück (bestens) · Stop-Loss für die restlichen 5 Stück: 44,10 € · wartende Kauf-Order 41,83 € löschen“) mit **„Bei flatex erledigt“** (Verkaufskurs in € eintragen, dann wird gebucht) und **„Ablehnen“** (Position bleibt, Meldung kommt nicht wieder). Läge ein neuer Stop nicht mindestens 0,5 % unter dem Kurs, wäre er bei flatex nicht möglich – dann lautet der Vorschlag „jetzt verkaufen“. Automatisch passiert nur, was flatex auch automatisch macht: wartende Limit-Kauforders (Teile) und ein bestätigter Stop-Loss. Unbestätigte Vorschläge werden nach 20 Stunden noch einmal gemeldet. Push bei geschlossener App: einmal täglich (Vercel-Cron 14:43 UTC); mit offener App alle 15 Minuten. Live-Bilanz und Turnier rechnen weiter mit Blacktraders eigenen Regeln.
 
+## Shipmaster 0.2 – Gewinn-Schutz für Blau (11.11.2026)
+
+Zusatz zu Shipmaster 0.1 (alles andere bleibt: 10 % vom Kontostand je Kauf, Nachkauf nur Blau 2 × 2 %, keine Shorts, ab 10.000 €).
+
+- **Regel (je Kauf einzeln):** Steht der Kurs über der Oberkante der blauen Zone (61,8 %, goldener Schnitt) und mindestens +20 % über dem Ø Einstieg dieses Kaufs, schlägt Blacktrader einen Stop-Loss auf die Oberkante vor und „wartende Teile bei flatex löschen“. Gebucht wird erst nach „Bei flatex erledigt“ (Order-Zettel wie bei jedem Vorschlag). Gilt auch für bestehende Käufe; in Buy & Hold nur als Tipp.
+- **Code:** `SHIP_PROTECT` / `protectDue` (analysis/longterm.ts), `shipmasterProtect` (client/longterm.ts), Test-Simulation `runLongTermEcho` (Turnier/Härtetest, Stop zum Stop-Kurs bzw. Eröffnungskurs), Regelwerk A2b.
+- **Härtetest (realistisch: nur gekaufte Teile, Geld-Blockade, Gebühr je Teil, Zinseszins; ab 10.000 €):** 10,9 % statt 10,1 % p. a.; Kunden mit Verlust 5,8 % statt 8,1 %; B8 bestanden (knapp). Skripte: `haertetest/`.
+- **Grenzen:** Kursdaten nur Schlusskurse → Stop im Test genau zur Oberkante (zu günstig). Im schlechtesten Fall (Verkauf zum Tagesschluss) besteht 0.2 B8 nicht mehr. Bei hohen Kosten verlieren die schlechtesten 5 % etwas mehr (−6,1 statt −5,3 %).
+- **Sicherung:** Branch `sicherung-vor-shipmaster-0.2` (Stand online vor dem Update), `sicherung-shipmaster-0.1`.
+
 ## Shipmaster 0.1 (Update 11.11.2026)
 
 Feste Geld-Regeln (Regelwerk A – Blacktrader ändert sie nie selbst), entstanden aus dem großen Härtetest (503 S&P-Aktien, 1990–2021, 100 × 1 Mio. Kunden; ab 10.000 € 13,9 % p. a., 1,9 % Kunden mit Verlust):

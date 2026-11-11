@@ -9,6 +9,7 @@ import { Sheet } from "./Sheet";
 import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
 import { toEur } from "@/lib/fx";
+import { protectDue, SHIP_PROTECT } from "@/lib/analysis/longterm";
 import { actions, useAppData } from "@/lib/store/store";
 import type { Horizon, ResolvedAsset } from "@/lib/types";
 import { EntryTile } from "./EntryTile";
@@ -68,7 +69,21 @@ function ShipmasterTip({ h, onOpen }: { h: Holding; onOpen: (a: ResolvedAsset, h
   const scan = useScan();
   const e = scan.entries.find((x) => x.asset.kind === h.kind && x.asset.symbol === h.symbol);
   const asset = { symbol: h.symbol, name: h.name, kind: h.kind, yahooSymbol: h.yahooSymbol, binanceSymbol: h.binanceSymbol, isin: h.isin, exchange: h.exchange, currency: h.currency } as ResolvedAsset;
-  return <EntryTile asset={asset} entry={e} chart onOpen={() => onOpen(asset, e?.best.horizon ?? e?.ltHorizon)} />;
+  // Shipmaster 0.2 als TIPP (nichts wird gebucht): Kurs über der blauen Zone und ≥ +20 % über deinem Ø Kaufpreis → Stop-Loss auf die Oberkante
+  const lt = e?.longterm;
+  const price = e?.ltCandles?.at(-1)?.close;
+  const avg = summarizeHolding(h).avg;
+  const tip = lt && price != null && avg > 0 && protectDue(price, avg, lt.zoneTop);
+  return (
+    <>
+      <EntryTile asset={asset} entry={e} chart onOpen={() => onOpen(asset, e?.best.horizon ?? e?.ltHorizon)} />
+      {tip && (
+        <p className="mt-1.5 rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[13px] text-sky-200">
+          Shipmaster 0.2 – Tipp: Kurs über der Zone und über +{Math.round(SHIP_PROTECT.gain * 100)} % – Stop-Loss auf die Oberkante {lt.zoneTop.toLocaleString("de-DE", { maximumFractionDigits: 2 })} {h.currency ?? ""} erwägen.
+        </p>
+      )}
+    </>
+  );
 }
 
 export function BuyHold() {

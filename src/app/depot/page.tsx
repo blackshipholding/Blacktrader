@@ -192,7 +192,7 @@ export default function DepotPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] text-gold">Depot</h1>
-          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto nach Shipmaster ${SHIPMASTER.version}: 10 % vom Kontostand je Kauf.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
+          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto nach Shipmaster ${SHIPMASTER.version}: 10 % vom Kontostand je Kauf, Gewinn-Schutz bei Blau.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
         </div>
         {tab === "bt" && <Legend />}
       </div>
