@@ -20,7 +20,7 @@ let cancels = 0, lostFills = 0;
 for (const f of files) {
   if (existsSync(`${DIR}/sigP7/${f}`)) continue;
   const d = JSON.parse(readFileSync(`${DIR}/sig/${f}`, "utf8"));
-  const res: Record<string, unknown[]> = { A: [], B: [], C: [] };
+  const res: Record<string, unknown[]> = { A: [], B: [], C: [], D: [], E: [], F: [] };
   if (!d.err) {
     const day = load(d.sym).filter((c) => c.time >= FROM);
     const { w, lastIdx } = weekly(day);
@@ -31,19 +31,23 @@ for (const f of files) {
         const z = findLongTermZone(w.slice(Math.max(0, i + 1 - 600), i + 1));
         if (!z || z.status !== "zulaufend" || seen.has(z.key)) continue;
         seen.add(z.key);
-        for (const ver of ["A", "B", "C"] as const) {
+        for (const ver of ["A", "B", "C", "D", "E", "F"] as const) {
+          // C: Stop Oberkante ab +20 % · D: ab +20 % nur wartende Teile löschen · E: Stop 5 % unter Oberkante ab +20 % · F: Stop Oberkante ab +30 %
+          const gainV = ver === "F" ? 1.3 : 1.2;
+          const stopV = ver === "E" ? z.zoneTop * 0.95 : z.zoneTop;
+          const withStop = ver === "C" || ver === "E" || ver === "F";
           const fills: { t: number; p: number; k: number }[] = [];
           let exit = NaN, exitT = 0, kind = "offen", cancelT = 0, lastIn = 0, guard = false;
           for (let j = lastIdx[i] + 1; j < day.length; j++) {
             const c = day[j];
             // C = Shipmaster 0.2: Stop auf der Oberkante (ab dem Tag nach dem Auslöser), wartende Teile gelöscht
-            if (guard && c.low <= z.zoneTop) { exit = Math.min(z.zoneTop, c.open); exitT = c.time; kind = "stop"; break; }
+            if (guard && withStop && c.low <= stopV) { exit = Math.min(stopV, c.open); exitT = c.time; kind = "stop"; break; }
             if (!cancelT) z.tranches.forEach((t, k) => { if (c.low <= t && !fills.some((x) => x.k === k)) fills.push({ t: c.time, p: Math.min(t, c.open), k }); });
             if (c.low <= z.zoneTop) lastIn = c.time;
             const wi = weekAt.get(j);
             if (wi != null && c.close < z.invalidation) { exit = c.close; exitT = c.time; kind = fills.length ? "inv" : "verpasst"; break; }
             if (c.high >= z.targets[0]) { exit = Math.max(z.targets[0], c.open); exitT = c.time; kind = fills.length ? "ziel" : "verpasst"; break; }
-            if (ver === "C" && !guard && fills.length) { const avg = fills.reduce((s, x) => s + x.p, 0) / fills.length; if (c.close > z.zoneTop && c.close >= avg * 1.2) { guard = true; cancelT = c.time; } }
+            if ((ver === "C" || ver === "D" || ver === "E" || ver === "F") && !guard && fills.length) { const avg = fills.reduce((s, x) => s + x.p, 0) / fills.length; if (c.close > z.zoneTop && c.close >= avg * gainV) { guard = true; cancelT = c.time; } }
             if (ver === "B" && !cancelT && wi != null && fills.length && fills.length < 3 && c.close >= z.zoneTop * 1.2) {
               const pv = zigzag(w.slice(Math.max(0, wi + 1 - 600), wi + 1), DEFAULT_LONGTERM.atrMult);
               if (pv.some((p) => p.type === "L" && p.confirmed && p.time > lastIn && p.price > z.zoneTop)) cancelT = c.time;
@@ -60,6 +64,6 @@ for (const f of files) {
       }
     }
   }
-  writeFileSync(`${DIR}/sigP7/${f}`, JSON.stringify({ ...d, posA: res.A, posB: res.B, posC: res.C }));
+  writeFileSync(`${DIR}/sigP7/${f}`, JSON.stringify({ ...d, posA: res.A, posB: res.B, posC: res.C, posD: res.D, posE: res.E, posF: res.F }));
 }
 console.log("cancels", cancels, "verlorene Teilkäufe", lostFills);
