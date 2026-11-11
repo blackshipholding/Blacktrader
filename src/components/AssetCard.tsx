@@ -166,7 +166,7 @@ export function AssetCard({
           {lt ? (
             <p className="-mt-1 text-[13px] text-sky-200">Welle 1 fertig – erwartet: Rücksetzer (Welle 2) in den blauen Bereich, danach Welle 3.</p>
           ) : (
-            waveCaption(wave) && <p className="-mt-1 text-[13px] text-stone-400">{waveCaption(wave)}</p>
+            waveCaption(wave) && <p className={`-mt-1 text-[13px] ${b.color === "gelb" ? "text-amber-200" : "text-stone-400"}`}>{waveCaption(wave, b.color === "gelb")}</p>
           )}
 
           {/* Zeile 3 */}

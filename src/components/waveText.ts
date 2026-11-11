@@ -17,7 +17,7 @@ export function nextWave(c: WaveCount): { label: string; dir: 1 | -1 } {
 }
 
 /** Ein Satz: "Blacktrader zählt: Welle 1 abwärts, Welle 2 aufwärts – als Nächstes Welle 3 abwärts erwartet." */
-export function waveCaption(c: WaveCount | undefined): string | null {
+export function waveCaption(c: WaveCount | undefined, neutral = false): string | null {
   if (!c) return null;
   const parts = c.labels.map((l, i) => {
     const d = i % 2 === 0 ? c.direction : -c.direction;
@@ -25,6 +25,11 @@ export function waveCaption(c: WaveCount | undefined): string | null {
   });
   const nx = nextWave(c);
   const next = /^[0-9A-Z]$/.test(nx.label) ? `Welle ${nx.label} ${dirWord(nx.dir)}` : nx.label.startsWith("neuer") ? nx.label : `${nx.label} ${dirWord(nx.dir)}`;
+  if (neutral) {
+    // Gelb: noch kein Einstieg – nur sagen, was als Nächstes passieren könnte
+    const could = /^Welle /.test(next) ? next : nx.label.startsWith("neuer") ? `ein ${next}` : `eine ${next}`;
+    return `Noch keine Handelsmöglichkeit gefunden. Blacktrader zählt: ${parts.join(", ")} – als Nächstes könnte ${could} kommen.`;
+  }
   return `Blacktrader zählt: ${parts.join(", ")} – als Nächstes ${next} erwartet.`;
 }
 

@@ -43,3 +43,4 @@
 - Gelb = neutrale Meinung OHNE Trend (Nutzer-Wunsch Nov. 2026): keine Szenario-/Trend-Leiste, Urteil „neutral – kein Einstieg“, keine „eher steigend/fallend“-Texte. Eine Steigend/Fallend-%-Leiste wurde gebaut und verworfen (Prozente nicht kalibriert).
 - Szenario-Leiste „Hauptszenario/Alternative“ bleibt bei Blau, Grün, Rot (Nutzer-Entscheid Nov. 2026, Entfernen wurde rückgängig gemacht); nur Gelb ohne Leiste.
 - Gelb: Stimmungs-Balken (NeutralGauge.tsx, Nutzer-Wunsch Nov. 2026) statt Szenario-Leiste – Zeiger Mitte/gelb „Abwarten – neutral“, Gesamtpunkte >55 → grün „wird bullisch“, <45 → rot „wird bärisch“; aus analysis.total, bei jeder Analyse neu. Reine Anzeige, kein Einstieg.
+- Gelb-Kachel: Wellen-Satz lautet „Noch keine Handelsmöglichkeit gefunden. Blacktrader zählt: … – als Nächstes könnte … kommen.“ (waveCaption neutral, amber statt grau; Nutzer-Wunsch Nov. 2026).

@@ -27,3 +27,13 @@ describe("abgeschlossene Korrektur", () => {
     expect(waveCaption(w)).toBe("Blacktrader zählt: A abwärts, B aufwärts, C abwärts – als Nächstes neuer Anstieg erwartet.");
   });
 });
+
+describe("Wellen-Satz bei Gelb", () => {
+  const zz = { pattern: "zigzag", complete: true, labels: ["A", "B", "C"], direction: 1, bias: -1 } as never;
+  it("normal: erwartet", () => {
+    expect(waveCaption(zz)).toBe("Blacktrader zählt: A aufwärts, B abwärts, C aufwärts – als Nächstes neuer Rückgang erwartet.");
+  });
+  it("Gelb: noch keine Handelsmöglichkeit, was passieren könnte", () => {
+    expect(waveCaption(zz, true)).toBe("Noch keine Handelsmöglichkeit gefunden. Blacktrader zählt: A aufwärts, B abwärts, C aufwärts – als Nächstes könnte ein neuer Rückgang kommen.");
+  });
+});
