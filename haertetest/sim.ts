@@ -72,6 +72,10 @@ interface Tr {
   px: number; // Ausstiegskurs
   zt?: number; // Oberkante der blauen Zone
   extraFee?: number; // zusätzliche Orders (Teilverkauf)
+  frac?: number; // Anteil am Positionsbetrag (Teil = 1/3)
+  res?: boolean; // reserviertes Geld einer wartenden Teil-Order (kein Gewinn, keine Gebühr)
+  noFeeIn?: boolean;
+  noFeeOut?: boolean;
   short?: boolean;
   blue?: boolean;
   pos?: number; // gemeinsame Position (neues Blau: Erstkauf + Nachkäufe)
@@ -88,6 +92,7 @@ const priceIdx = (s: number, i: number) => (s < 0 ? spxClose[i] : lastClose(s, i
 const btOld: Tr[] = [];
 const btOldNoRule: Tr[] = [];
 const btOldBelow: Tr[] = [];
+const btPos: Tr[] = [];
 const btNew: Tr[] = [];
 const btNewNoRule: Tr[] = [];
 let posId = 0;
@@ -125,6 +130,29 @@ for (const f of readdirSync(`${DIR}/${SIG}`)) {
   }
   gr(oldActive, btOld);
   gr(oldActive, btOldNoRule);
+  // Punkt 7: blaue Positionen mit einzelnen Teilen und reserviertem Geld (POS=A|B)
+  if (process.env.POS) {
+    const ps = d["pos" + process.env.POS] as { e: number; x: number; px: number; open: boolean; legs: [number, number][]; resv: number; cancel: number | null }[];
+    const posAct: ActiveIntervals = { blau: ps.map((p) => [p.e, p.open ? 4e9 : p.x]), "1d": iv(d.z1d), "1w": iv(d.z1w) };
+    for (const p of ps) {
+      const id = posId++;
+      const e0 = atOrAfter(p.legs[0][0]);
+      if (e0 >= N) continue;
+      const x = p.open ? N + 1 : atOrAfter(p.x);
+      p.legs.forEach(([t, px0], k) => {
+        const e = atOrAfter(t);
+        if (e > e0 && !process.env.NORES) btPos.push({ s, e: e0, x: e, pe: 1, px: 1, blue: true, pos: id, leg: 10 + k, frac: 1 / 3, res: true, prio: 1 });
+        btPos.push({ s, e, x, pe: px0, px: p.px, blue: true, pos: id, leg: k, frac: 1 / 3, prio: k === 0 ? 0 : 2, noFeeOut: k > 0 });
+      });
+      if (!process.env.NORES) for (let k = 0; k < p.resv; k++) btPos.push({ s, e: e0, x: p.cancel ? atOrAfter(p.cancel) : x, pe: 1, px: 1, blue: true, pos: id, leg: 20 + k, frac: 1 / 3, res: true, prio: 1 });
+    }
+    for (const t of d.gr) {
+      if (t.short || suppressedBy("stock", t.src, t.e, posAct)) continue;
+      const e = atOrAfter(t.e); const x = atOrAfter(t.x);
+      if (e >= N) continue;
+      btPos.push({ s, e, x: x >= N ? N + 1 : x, pe: t.px, px: t.px * (1 + t.r / 100), color: t.color, risk: t.risk, chance: t.chance, prio: 3 });
+    }
+  }
   gr(oldActive, btOldBelow);
   // Neu: Positionen mit bis zu 3 Käufen
   for (const p of d.newBlue) {
@@ -299,7 +327,7 @@ const spx200 = sma(spxClose, 200);
 const spxHi252 = rollMax(spxClose, 252);
 const monthOf = (i: number) => new Date(cal[i] * 1000).getUTCMonth();
 
-type Sizing = "ship" | "btP" | "btNew" | "btNk" | "btNkMinCash" | "btOld" | "btOldMin" | "btOldCash" | "btOldMinCash" | "slots10" | "allIn" | "sparplan" | "buyHold";
+type Sizing = "shipPos" | "ship" | "btP" | "btNew" | "btNk" | "btNkMinCash" | "btOld" | "btOldMin" | "btOldCash" | "btOldMinCash" | "slots10" | "allIn" | "sparplan" | "buyHold";
 interface ShipP { first: number; add: number; max: number; green?: number; crvSize?: boolean; sectorMax?: number; equity?: boolean }
 interface Strat { id: string; name: string; group: string; sizing: Sizing; trades: Tr[]; stateful?: boolean; interest?: number; p?: { first: number; add: number; max: number; mc: boolean }; sp?: ShipP }
 const strategies: Strat[] = [];
@@ -346,6 +374,8 @@ ship("S6", "S6: nur Chance/Risiko ab 2", btOldNoRule.filter((t) => !(crv(t) < 2)
 ship("S7", "S7: höchstens 3 Positionen je Branche", btOldNoRule, { sectorMax: 3 });
 ship("S8", "S8: Zinseszins (10 % vom aktuellen Kontostand)", btOldNoRule, { equity: true });
 ship("S9", "S9: ohne Shorts + Zinseszins (S1 + S8)", btOldNoRule.filter((t) => !t.short), { equity: true });
+add("P7", "Shipmaster 0.1 mit Teilen + reserviertem Geld (POS=A) bzw. Punkt 7 (POS=B)", "Shipmaster", "shipPos", btPos);
+strategies[strategies.length - 1].sp = { ...SHIP, equity: true };
 // Gewinn-Schutz Blau (Nutzer-Frage 11.11.2026): Kurs über der Oberkante und mind. +gain über Ø Einstieg → Stop
 // (ab dem nächsten Tag) auf die Oberkante (lvl "top") bzw. den Ø Einstieg (lvl "avg"); nur Schlusskurse vorhanden →
 // Stop greift beim ersten Schlusskurs auf/unter der Stop-Linie, Verkauf zu diesem Schlusskurs.
@@ -452,6 +482,7 @@ const yearOf = (i: number) => new Date(cal[Math.min(i, END)] * 1000).getUTCFullY
 interface Res { end: number; broke: boolean; fees: number; tax: number; n: number; low: number }
 
 function exitValue(t: Tr, w1: number): { at: number; px: number } {
+  if (t.res) return { at: Math.min(t.x, w1), px: t.pe };
   const sl = STRESS ? (t.short ? 1.005 : 0.995) : 1;
   if (t.x <= w1 && t.px === t.px) return { at: t.x, px: t.px * sl };
   return { at: w1, px: priceIdx(t.s, w1) * sl };
@@ -486,7 +517,11 @@ function simulate(st: Strat, ev: { t: Tr; ex: { at: number; px: number } }[], w0
   const open = new Map<Tr, number>();
   const posOpen = new Map<number, boolean>(); // neues Blau: Position aktiv (Erstkauf gekauft)
   const symOpen = new Int32Array(S + 1);
-  const minStake = st.sizing === "ship" ? st.sp!.add * cap : st.sizing === "btP" ? (st.p!.mc ? Math.max(st.p!.add * cap, 1000) : st.p!.add * cap) : st.sizing === "btNk" ? cap / 32 : st.sizing === "btNkMinCash" ? Math.max(cap / 32, 1000) : st.sizing === "btNew" ? Math.min(0.02 * cap, 1000) : st.sizing === "btOld" || st.sizing === "btOldCash" ? cap / 32 : st.sizing === "btOldMin" || st.sizing === "btOldMinCash" ? Math.max(cap / 32, 1000) : st.sizing === "slots10" ? cap / 10 : FEE * 2;
+  const posS = new Map<number, number>(); // Punkt-7-Test: Positionsbetrag je blauer Position
+  const posCnt = new Map<number, number>();
+  const posSingle = new Set<number>();
+  const symPos = new Int32Array(S + 1);
+  const minStake = st.sizing === "ship" || st.sizing === "shipPos" ? st.sp!.add * cap : st.sizing === "btP" ? (st.p!.mc ? Math.max(st.p!.add * cap, 1000) : st.p!.add * cap) : st.sizing === "btNk" ? cap / 32 : st.sizing === "btNkMinCash" ? Math.max(cap / 32, 1000) : st.sizing === "btNew" ? Math.min(0.02 * cap, 1000) : st.sizing === "btOld" || st.sizing === "btOldCash" ? cap / 32 : st.sizing === "btOldMin" || st.sizing === "btOldMinCash" ? Math.max(cap / 32, 1000) : st.sizing === "slots10" ? cap / 10 : FEE * 2;
   // G: Zinsen auf freies Geld (täglich verzinst bis zum nächsten Ereignis, KESt 27,5 % sofort)
   let lastDay = w0;
   const accrue = (day: number) => {
@@ -510,7 +545,9 @@ function simulate(st: Strat, ev: { t: Tr; ex: { at: number; px: number } }[], w0
     if (stake == null) return;
     const g = gain(o.t, stake, o.px);
     const ef = (o.t.extraFee ?? 0) * FEE;
-    cash += stake + g - FEE - ef; fees += FEE + ef;
+    const fo = o.t.res || o.t.noFeeOut ? 0 : FEE;
+    cash += stake + g - fo - ef; fees += fo + ef;
+    if (o.t.pos != null && posCnt.has(o.t.pos)) { const c = posCnt.get(o.t.pos)! - 1; if (c <= 0) { posCnt.delete(o.t.pos); posS.delete(o.t.pos); symPos[o.t.s + 1]--; } else posCnt.set(o.t.pos, c); }
     const k = kest.settle(g, yearOf(o.at));
     cash -= k; tax += k;
     open.delete(o.t);
@@ -528,6 +565,22 @@ function simulate(st: Strat, ev: { t: Tr; ex: { at: number; px: number } }[], w0
     let stake = 0;
     const have = symOpen[t.s + 1];
     switch (st.sizing) {
+      case "shipPos": {
+        const p = st.sp!;
+        const base = cash + invested;
+        if (t.pos == null) { if (have > 0) continue; stake = p.first * base; break; }
+        if (t.leg === 0) {
+          if (posS.has(t.pos)) continue;
+          if (have > 0 && symPos[t.s + 1] === 0) continue; // grüner Trade offen
+          if (symPos[t.s + 1] > 0) { if (symPos[t.s + 1] > p.max) continue; posS.set(t.pos, p.add * base); posSingle.add(t.pos); stake = p.add * base; }
+          else { posS.set(t.pos, p.first * base); stake = (p.first * base) / 3; }
+          symPos[t.s + 1]++;
+        } else {
+          if (!posS.has(t.pos) || posSingle.has(t.pos)) continue;
+          stake = posS.get(t.pos)! / 3;
+        }
+        break;
+      }
       case "ship": {
         const p = st.sp!;
         if (have > 0 && (!t.blue || have > p.max)) continue;
@@ -587,12 +640,15 @@ function simulate(st: Strat, ev: { t: Tr; ex: { at: number; px: number } }[], w0
         if (stake <= 0) continue;
         break;
     }
-    if (cash < stake + FEE) {
+    const fi = t.res || t.noFeeIn ? 0 : FEE;
+    if (cash < stake + fi) {
       if (open.size === 0 && cash < minStake + FEE) broke = true;
+      if (t.pos != null && t.leg === 0 && st.sizing === "shipPos" && posS.has(t.pos) && !posCnt.has(t.pos)) { posS.delete(t.pos); posSingle.delete(t.pos); symPos[t.s + 1]--; }
       continue;
     }
-    cash -= stake + FEE; fees += FEE; n++;
+    cash -= stake + fi; fees += fi; if (!t.res) n++;
     open.set(t, stake);
+    if (t.pos != null && st.sizing === "shipPos") posCnt.set(t.pos, (posCnt.get(t.pos) ?? 0) + 1);
     if (symOpen[t.s + 1] === 0 && t.s >= 0) sectorOpen.set(sector[t.s], (sectorOpen.get(sector[t.s]) ?? 0) + 1);
     symOpen[t.s + 1]++;
     if (t.pos != null && t.leg === 0) posOpen.set(t.pos, true);
@@ -642,7 +698,7 @@ const out: Record<string, { end: Float64Array; broke: Uint8Array; fees: Float64A
 const t0 = Date.now();
 const PART = process.env.PART?.split("/").map(Number);
 const AGG = !!process.env.AGG;
-const tag = (process.env.SIG ? process.env.SIG + "_" : "") + (process.env.SUPPSIG ? "supp" + process.env.SUPPSIG + "_" : "") + (QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f");
+const tag = (process.env.SIG ? process.env.SIG + "_" : "") + (process.env.POS ? "pos" + process.env.POS + (process.env.NORES ? "nores" : "") + "_" : "") + (process.env.SUPPSIG ? "supp" + process.env.SUPPSIG + "_" : "") + (QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f");
 const dropped = (sym: string, seed: number) => { let h = 2166136261 ^ seed; for (let i = 0; i < sym.length; i++) h = Math.imul(h ^ sym.charCodeAt(i), 16777619); return ((h >>> 0) % 100) < 20; };
 for (const [si, st] of strategies.entries()) {
   if (AGG) {
