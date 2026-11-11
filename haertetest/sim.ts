@@ -347,7 +347,7 @@ ship("S9", "S9: ohne Shorts + Zinseszins (S1 + S8)", btOldNoRule.filter((t) => !
 // Gewinn-Schutz Blau (Nutzer-Frage 11.11.2026): Kurs über der Oberkante und mind. +gain über Ø Einstieg → Stop
 // (ab dem nächsten Tag) auf die Oberkante (lvl "top") bzw. den Ø Einstieg (lvl "avg"); nur Schlusskurse vorhanden →
 // Stop greift beim ersten Schlusskurs auf/unter der Stop-Linie, Verkauf zu diesem Schlusskurs.
-function trail(t: Tr, gain: number, lvl: "top" | "avg"): Tr {
+function trail(t: Tr, gain: number, lvl: "top" | "avg", base: "avg" | "top" = "avg"): Tr {
   if (!t.blue || t.zt == null) return t;
   const stop = lvl === "top" ? t.zt : t.pe;
   const a = close[t.s];
@@ -357,13 +357,14 @@ function trail(t: Tr, gain: number, lvl: "top" | "avg"): Tr {
     const c = a[i];
     if (c !== c) continue;
     if (on && c <= stop) return { ...t, x: i, px: c };
-    if (!on && c >= t.pe * (1 + gain) && c > t.zt) on = true;
+    if (!on && c >= (base === "top" ? t.zt : t.pe) * (1 + gain) && c > t.zt) on = true;
   }
   return t;
 }
 const s9base = btOldNoRule.filter((t) => !t.short);
-const trailed = (g: number, l: "top" | "avg") => s9base.map((t) => trail(t, g, l)).sort((a, b) => a.e - b.e);
+const trailed = (g: number, l: "top" | "avg", base: "avg" | "top" = "avg") => s9base.map((t) => trail(t, g, l, base)).sort((a, b) => a.e - b.e);
 ship("S15", "S15: S9 + Stop auf Oberkante ab +20 %", trailed(0.2, "top"), { equity: true });
+ship("S21", "S21: S9 + Stop auf Oberkante ab +20 % über der Oberkante", trailed(0.2, "top", "top"), { equity: true });
 ship("S16", "S16: S9 + Stop auf Oberkante ab +10 %", trailed(0.1, "top"), { equity: true });
 ship("S17", "S17: S9 + Stop auf Oberkante ab +30 %", trailed(0.3, "top"), { equity: true });
 ship("S18", "S18: S9 + Stop auf Ø Einstieg ab +20 %", trailed(0.2, "avg"), { equity: true });
