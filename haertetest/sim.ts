@@ -71,6 +71,7 @@ interface Tr {
   pe: number; // Einstiegskurs
   px: number; // Ausstiegskurs
   zt?: number; // Oberkante der blauen Zone
+  extraFee?: number; // zusätzliche Orders (Teilverkauf)
   short?: boolean;
   blue?: boolean;
   pos?: number; // gemeinsame Position (neues Blau: Erstkauf + Nachkäufe)
@@ -366,6 +367,25 @@ ship("S15", "S15: S9 + Stop auf Oberkante ab +20 %", trailed(0.2, "top"), { equi
 ship("S16", "S16: S9 + Stop auf Oberkante ab +10 %", trailed(0.1, "top"), { equity: true });
 ship("S17", "S17: S9 + Stop auf Oberkante ab +30 %", trailed(0.3, "top"), { equity: true });
 ship("S18", "S18: S9 + Stop auf Ø Einstieg ab +20 %", trailed(0.2, "avg"), { equity: true });
+// Nutzer-Varianten (11.11.2026): bei +g über Ø Einstieg (egal ob über der Oberkante) 10 % der Position verkaufen
+// (eigene Order, eigene Gebühr) und Stop für den Rest auf den Ø Einstieg. Gerechnet als ein Trade mit Misch-Ausstieg.
+function partial(t: Tr, g: number, share = 0.1): Tr {
+  if (!t.blue) return t;
+  const a = close[t.s];
+  const last = Math.min(t.x, END + 1);
+  let r1: number | null = null;
+  for (let i = t.e + 1; i < last; i++) {
+    const c = a[i];
+    if (c !== c) continue;
+    if (r1 != null && c <= t.pe) return { ...t, x: i, px: t.pe * (1 + share * r1 + (1 - share) * (c / t.pe - 1)), extraFee: 1 };
+    if (r1 == null && c >= t.pe * (1 + g)) r1 = c / t.pe - 1;
+  }
+  if (r1 == null || t.px !== t.px) return t;
+  return { ...t, px: t.pe * (1 + share * r1 + (1 - share) * (t.px / t.pe - 1)), extraFee: 1 };
+}
+const parted = (g: number) => s9base.map((t) => partial(t, g)).sort((a, b) => a.e - b.e);
+ship("S19", "S19: S9 + bei +10 % 10 % verkaufen, Stop auf Ø Einstieg", parted(0.1), { equity: true });
+ship("S20", "S20: S9 + bei +20 % 10 % verkaufen, Stop auf Ø Einstieg", parted(0.2), { equity: true });
 // Momentum und RSI zusätzlich (nur Daten bis zum Vortag des Kaufs)
 const rsi14 = C.map((a) => rsi(a, 14));
 const rsiOk = (t: Tr) => { const v = rsi14[t.s]?.[t.e - 1]; return !(v > 70); };
@@ -486,7 +506,8 @@ function simulate(st: Strat, ev: { t: Tr; ex: { at: number; px: number } }[], w0
     const stake = open.get(o.t);
     if (stake == null) return;
     const g = gain(o.t, stake, o.px);
-    cash += stake + g - FEE; fees += FEE;
+    const ef = (o.t.extraFee ?? 0) * FEE;
+    cash += stake + g - FEE - ef; fees += FEE + ef;
     const k = kest.settle(g, yearOf(o.at));
     cash -= k; tax += k;
     open.delete(o.t);
