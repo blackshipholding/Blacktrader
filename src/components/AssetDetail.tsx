@@ -18,7 +18,7 @@ import { SCAN_PRESETS } from "@/lib/client/presets";
 import { useScan } from "@/lib/client/scanner";
 import { actions, useAppData } from "@/lib/store/store";
 import { type Candle, type Fundamentals, type Horizon, type Interval, type NewsItem, type ResolvedAsset } from "@/lib/types";
-import { Commentary, planMatchesMain, LongTermCard, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
+import { Commentary, planMatchesMain, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
 import type { ChartEntry } from "./chartZones";
 import { PriceChart } from "./PriceChart";
 import { StatusPill } from "./StatusPill";
@@ -272,13 +272,13 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { a
         <>
           {showTradePlan && <SignalCard a={analysis} onTrade={hideTake ? undefined : () => setTrade(true)} shortAllowed={scan.ctx.spBear === true} main={mainColor === "gruen" || mainColor === "rot" || mainColor === "gelb" ? mainColor : undefined} />}
           {!showTradePlan && <LongTermSignalCard a={analysis} zone={ltZone} currency={currency} />}
-          {/* Schon investiert (offene Langfrist-Position) → kein „Langfristiger Einstieg“ mehr anbieten (Wunsch des Nutzers) */}
-          {showLongTerm && !myLt && !openLongTerm(asset.symbol) && <LongTermCard
-            zone={ltZone}
-            currency={currency}
-            position={null}
-            onTake={!hideTake && ltZone ? () => openLongTermTrade({ ...asset, currency: asset.currency ?? currency }, ltZone, horizon, interval, chartCandles[chartCandles.length - 1]?.close ?? ltZone.zoneTop) : undefined}
-          />}
+          {/* Karte „Langfristiger Einstieg“ mit Fließtext entfällt in ALLEN Detailansichten (Nutzer 11.11.2026: Bereich, Ziel usw. stehen schon oben).
+              Ohne Einstiegs-Kopf (hideTake) bleibt nur der Knopf zum Übernehmen – nicht, wenn schon investiert. */}
+          {showLongTerm && !hideTake && !myLt && !openLongTerm(asset.symbol) && ltZone && ltZone.status !== "invalidiert" && (
+            <button className="btn-primary w-full" onClick={() => openLongTermTrade({ ...asset, currency: asset.currency ?? currency }, ltZone, horizon, interval, chartCandles[chartCandles.length - 1]?.close ?? ltZone.zoneTop)}>
+              Langfristig übernehmen
+            </button>
+          )}
           {showTradePlan && <Commentary a={analysis} item={asset} main={mainColor === "gruen" || mainColor === "rot" || mainColor === "gelb" ? mainColor : undefined} waitText={best?.best.waitFor ?? best?.best.reason} />}
           <FundamentalsPanel a={analysis} f={fundamentals} note={fundNote} kind={asset.kind} />
           <NewsPanel news={news} score={analysis.fundamental.newsScore} />
