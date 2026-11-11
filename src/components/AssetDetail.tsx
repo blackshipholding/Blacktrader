@@ -18,7 +18,7 @@ import { SCAN_PRESETS } from "@/lib/client/presets";
 import { useScan } from "@/lib/client/scanner";
 import { actions, useAppData } from "@/lib/store/store";
 import { type Candle, type Fundamentals, type Horizon, type Interval, type NewsItem, type ResolvedAsset } from "@/lib/types";
-import { Commentary, LongTermCard, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
+import { Commentary, planMatchesMain, LongTermCard, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
 import type { ChartEntry } from "./chartZones";
 import { PriceChart } from "./PriceChart";
 import { StatusPill } from "./StatusPill";
@@ -257,7 +257,7 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { a
             candles={dayCandles}
             best={shownBest}
             alternative={shownAlt}
-            plan={showTradePlan && (settings.expertMode || analysis?.decision.level !== "neutral") ? analysis?.plan : null}
+            plan={showTradePlan && analysis && (mainColor ? planMatchesMain(analysis, mainColor) : settings.expertMode || analysis.decision.level !== "neutral") ? analysis.plan : null}
             showAlternative={settings.expertMode}
             simple={!settings.expertMode}
             height={typeof window !== "undefined" && window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches ? Math.max(240, window.innerHeight - 110) : 360}
@@ -279,7 +279,7 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { a
             position={null}
             onTake={!hideTake && ltZone ? () => openLongTermTrade({ ...asset, currency: asset.currency ?? currency }, ltZone, horizon, interval, chartCandles[chartCandles.length - 1]?.close ?? ltZone.zoneTop) : undefined}
           />}
-          {showTradePlan && <Commentary a={analysis} item={asset} />}
+          {showTradePlan && <Commentary a={analysis} item={asset} main={mainColor === "gruen" || mainColor === "rot" || mainColor === "gelb" ? mainColor : undefined} waitText={best?.best.waitFor ?? best?.best.reason} />}
           <FundamentalsPanel a={analysis} f={fundamentals} note={fundNote} kind={asset.kind} />
           <NewsPanel news={news} score={analysis.fundamental.newsScore} />
           <details className="card p-4" open={settings.expertMode}>

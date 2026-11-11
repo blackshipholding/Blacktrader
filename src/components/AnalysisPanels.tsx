@@ -63,7 +63,7 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
         <p className="rounded-lg bg-amber-500/10 p-2 text-sm text-amber-100">Hinweis: Der Gesamtmarkt (S&P 500) ist gerade nicht bärisch. Blacktrader nimmt Shorts nur in bärischen Märkten als aktuellen Einstieg – dieser Short ist nur zur Information.</p>
       )}
       {mode === "gelb" && <p className="rounded-lg bg-amber-500/10 p-2 text-sm text-amber-100">Blacktrader wartet: Gerade gibt es kein Szenario, das klar genug für einen Einstieg ist.</p>}
-      {a.plan && (expert || active) ? (
+      {a.plan && ((expert && !main) || active) ? (
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
           <dt className="text-stone-400">Richtung</dt>
           <dd className={a.plan.direction === "long" ? "text-up" : "text-down"}>{a.plan.direction === "long" ? "Auf steigende Kurse" : "Auf fallende Kurse"}</dd>
@@ -101,7 +101,45 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
   );
 }
 
-export function Commentary({ a, item }: { a: AnalysisResult; item: { symbol: string; name: string } }) {
+/**
+ * Begründung – passend zum Hauptszenario von Blacktrader (nur EIN Szenario je Wert): Ist das Hauptszenario Gelb (Abwarten)
+ * oder passt die Richtung des Rohplans nicht dazu, zeigt die Begründung die neutrale Warte-Nachricht statt des Plans.
+ */
+export function Commentary({ a, item, main, waitText }: { a: AnalysisResult; item: { symbol: string; name: string }; main?: "gruen" | "rot" | "gelb"; waitText?: string }) {
+  if (main && !planMatchesMain(a, main)) return <WaitCommentary a={a} text={waitText} />;
+  return <PlanCommentary a={a} item={item} />;
+}
+
+/** Passt der Rohplan der Analyse zum Hauptszenario? (Grün = Kauf, Rot = Short, Gelb = nie) */
+export function planMatchesMain(a: AnalysisResult, main?: "gruen" | "rot" | "gelb" | "blau"): boolean {
+  if (!main) return true;
+  if (!a.plan || a.decision.level === "neutral") return false;
+  return (main === "gruen" && a.plan.direction === "long") || (main === "rot" && a.plan.direction === "short");
+}
+
+function WaitCommentary({ a, text }: { a: AnalysisResult; text?: string }) {
+  const expert = useAppData((d) => d.settings.expertMode);
+  return (
+    <div className="panel space-y-2 p-4">
+      <span className="panel-title">Begründung</span>
+      <p className="text-lg font-semibold leading-snug text-amber-300">Abwarten – gerade kein Einstieg</p>
+      <p className="text-base leading-relaxed text-amber-100">{text || "Blacktrader wartet: Gerade gibt es kein Szenario, das klar genug für einen Einstieg ist."}</p>
+      <details className="text-sm" open={expert}>
+        <summary className="cursor-pointer text-xs text-gold/80">Details zur Analyse</summary>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+          {([["Wellen", a.commentary.elliott], ["Fundamental", a.commentary.fundamental], ["Volumen/RSI", a.commentary.volume]] as [string, string][]).map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="pt-0.5 text-[13px] text-gold/80">{k}</dt>
+              <dd className="text-stone-300">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </div>
+  );
+}
+
+function PlanCommentary({ a, item }: { a: AnalysisResult; item: { symbol: string; name: string } }) {
   const hasKey = useAppData((d) => !!d.settings.keys.llm);
   const expert = useAppData((d) => d.settings.expertMode);
   const [llm, setLlm] = useState<string | null>(null);
