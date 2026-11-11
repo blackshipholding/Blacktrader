@@ -23,6 +23,8 @@ const GROUP_KEYS: Record<string, AssetKind> = { "gruppe:stock": "stock", "gruppe
 interface AssetResult {
   asset: ResolvedAsset;
   zones: EchoZone[];
+  /** alle Zonen inkl. Short – nur für den Trainer, nicht angezeigt (Blacktrader handelt keine Shorts) */
+  rawZones?: EchoZone[];
   candles: Candle[];
   tradeHit: number | null;
   tradeReturn: number | null;
@@ -115,11 +117,14 @@ export default function EchoChartPage() {
         );
         const bl = (rw?.ltTrades ?? []).filter((x) => x.entryTime >= periodStart && x.result !== "offen" && blueTrade(x).ok);
         const t = [...gr.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: false })), ...bl.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: true }))];
-        const zones = [...(rd?.zones ?? []).filter((z) => z.kind !== "core"), ...(rw?.zones ?? [])].filter((z) => z.t >= periodStart).sort((x, y) => x.t - y.t);
+        const rawZones = [...(rd?.zones ?? []).filter((z) => z.kind !== "core"), ...(rw?.zones ?? [])].filter((z) => z.t >= periodStart).sort((x, y) => x.t - y.t);
+        // Shipmaster 0.1: Blacktrader handelt keine Shorts → Short-Zonen werden hier nicht gezeigt (Wunsch des Nutzers)
+        const zones = rawZones.filter((z) => z.kind !== "short");
         const chartCandles = (dc && dc.length >= 200 ? dc : wc!).filter((c) => c.time >= periodStart);
         out.push({
           asset: a,
           zones,
+          rawZones,
           candles: chartCandles,
           trades: t.length,
           tradeHit: t.length ? t.filter((x) => x.returnPct > 0).length / t.length : null,
@@ -135,7 +140,7 @@ export default function EchoChartPage() {
     setBusy(false);
     if (out.every((r) => r.error)) setError(out[0]?.error ?? "Keine Daten");
     // Ergebnis still für den Trainer aufbewahren
-    const zs = out.flatMap((r) => r.zones.map((z) => ({ symbol: r.asset.symbol, ...z })));
+    const zs = out.flatMap((r) => (r.rawZones ?? r.zones).map((z) => ({ symbol: r.asset.symbol, ...z })));
     void fetch("/api/trainer/echo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label, horizon: "tag+woche", interval, days, summary: summarize(zs), zones: zs }) }).catch(() => {});
   };
 
@@ -227,8 +232,8 @@ export default function EchoChartPage() {
             <p className="text-[15px] text-stone-200">{sum.zones ? `Von ${sum.zones} Zonen haben ${sum.held} gehalten.` : "In diesem Zeitraum gab es keine Zone."}</p>
           </div>
           {sum.zones > 0 && (
-            <div className="grid grid-cols-3 gap-2 text-center text-[13px]">
-              {(["trade", "short", "core"] as EchoKind[]).map((k) => (
+            <div className="grid grid-cols-2 gap-2 text-center text-[13px]">
+              {(["trade", "core"] as EchoKind[]).map((k) => (
                 <div key={k} className="rounded-xl bg-white/5 px-1 py-2">
                   <div className={KIND_CLS[k]}>{KIND_TEXT[k]}</div>
                   <div className="num text-stone-200">{sum.byKind[k].zones ? `${sum.byKind[k].held} / ${sum.byKind[k].zones}` : "–"}</div>
@@ -309,9 +314,9 @@ export default function EchoChartPage() {
           <details className="text-[13px] text-stone-400">
             <summary className="cursor-pointer">Wie wird gezählt?</summary>
             <p className="mt-1">
-              Trades und Konto nach denselben Regeln wie Chancen und Turnier (Shipmaster 0.1): keine Shorts, Sektor-Regel für Tech-Werte, Chance bis zum Ziel mindestens 15 %, nur die obere Hälfte nach Potenzial, Blau ohne Blau-Regel. Die Zonen-Quote oben zählt dagegen alle Zonen (Qualität der Zonen).{" "}
+              Trades und Konto nach denselben Regeln wie Chancen und Turnier (Shipmaster 0.1): keine Shorts, Sektor-Regel für Tech-Werte, Chance bis zum Ziel mindestens 15 %, nur die obere Hälfte nach Potenzial, Blau ohne Blau-Regel. Die Zonen-Quote oben zählt Kauf- und Langfrist-Zonen (Qualität der Zonen) – Short-Zonen nicht, weil Blacktrader keine Shorts handelt.{" "}
               Konto: {ACCOUNT.start.toLocaleString("de-DE")} € Start, 1. Kauf 10 % und Nachkauf (nur Blau) höchstens 2 × 2 % vom jeweiligen Kontostand (nur wenn genug Geld frei ist, je Wert eine Position), 7,90 € Gebühr je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im selben Jahr – alles netto. Wechselkurs-Schwankungen sind hier nicht eingerechnet.{" "}
-              Wie bei HKCM: Eine Zone hat gehalten, wenn der Kurs hineinläuft, vor der Unterkante dreht und oben wieder herausläuft (bei Short umgekehrt). Fällt er vorher unter die Unterkante, ist sie gescheitert. Zonen, die der Kurs nie erreicht hat, zählen nicht. Blacktrader kennt dabei immer nur die Kurse bis zum jeweiligen Tag. Gute Ergebnisse von früher sind keine Garantie für die Zukunft.
+              Wie bei HKCM: Eine Zone hat gehalten, wenn der Kurs hineinläuft, vor der Unterkante dreht und oben wieder herausläuft. Fällt er vorher unter die Unterkante, ist sie gescheitert. Zonen, die der Kurs nie erreicht hat, zählen nicht. Blacktrader kennt dabei immer nur die Kurse bis zum jeweiligen Tag. Gute Ergebnisse von früher sind keine Garantie für die Zukunft.
             </p>
           </details>
         </section>
