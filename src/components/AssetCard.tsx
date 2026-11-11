@@ -22,6 +22,7 @@ import { waveCaption } from "./waveText";
 import { ConfirmSheet } from "./Sheet";
 import { MarketNote } from "./DepotPicker";
 import { StatusPill } from "./StatusPill";
+import { ADD } from "@/lib/client/account";
 
 const RISK_LIMIT = 15; // % Abstand Einstieg–Stop, ab dem "Hohes Risiko" angezeigt wird
 
@@ -248,7 +249,7 @@ export function AssetCard({
 
           {(myLine || isNachkauf || myTrade?.promotedAt || (plan && riskPct > RISK_LIMIT)) && (
             <div className="space-y-1.5 text-[14px]">
-              {isNachkauf && <p className="text-sky-200">Nachkauf möglich: neuer blauer Bereich zu deiner Position – 250 € (noch {nk!.left} von 4).</p>}
+              {isNachkauf && <p className="text-sky-200">Nachkauf möglich: neuer blauer Bereich zu deiner Position – {ADD.stake.toLocaleString("de-DE")} € (noch {nk!.left} von {ADD.max}).</p>}
               {myLine && <p className="text-sky-200">{myLine}</p>}
               {myTrade?.promotedAt && (
                 <p className="text-sky-200">
@@ -299,7 +300,7 @@ export function AssetCard({
           </button>
         ) : isNachkauf ? (
           <button className="btn-primary flex-1" onClick={() => setConfirm("nachkauf")}>
-            Nachkauf übernehmen (250 €)
+            Nachkauf übernehmen ({ADD.stake.toLocaleString("de-DE")} €)
           </button>
         ) : lt && !held ? (
           <button className="btn-primary flex-1" onClick={() => setConfirm("longterm")}>
@@ -367,7 +368,7 @@ export function AssetCard({
       />
       <ConfirmSheet
         open={confirm === "nachkauf"}
-        title="Nachkauf (250 €)"
+        title={`Nachkauf (${ADD.stake.toLocaleString("de-DE")} €)`}
         confirm="Order legen"
         onClose={() => setConfirm(null)}
         onConfirm={() => {
@@ -378,7 +379,7 @@ export function AssetCard({
         text={
           lt && nk ? (
             <div className="space-y-2">
-              <p>{asset.name}: Nachkauf zu deiner Position im neuen blauen Bereich – eine Order zu 250 € an der Oberkante ({nk.left} von 4 Nachkäufen noch möglich).</p>
+              <p>{asset.name}: Nachkauf zu deiner Position im neuen blauen Bereich – eine Order zu {ADD.stake.toLocaleString("de-DE")} € an der Oberkante ({nk.left} von {ADD.max} Nachkäufen noch möglich).</p>
               <MarketNote price={lastPrice} top={lt.zoneTop} cur={cur} />
               <OrderSlip kind={asset.kind} symbol={asset.symbol} name={asset.name} currency={cur} direction="long" entry={lt.zoneTop} tranches={effectiveLevels([lt.zoneTop], lastPrice ?? 0)} invalidation={lt.invalidation} targets={[...lt.targets]} budget={250} />
             </div>

@@ -250,7 +250,7 @@ export default function EchoChartPage() {
           )}
           {acc && (
             <div className="rounded-xl border border-gold/30 bg-black/30 p-3 text-center">
-              <div className="text-[14px] text-stone-300">Mit {ACCOUNT.start.toLocaleString("de-DE")} € und {ACCOUNT.stake} € je Trade (netto)</div>
+              <div className="text-[14px] text-stone-300">Mit {ACCOUNT.start.toLocaleString("de-DE")} € und {ACCOUNT.stake.toLocaleString("de-DE")} € je Trade (netto)</div>
               <div className={`num text-[30px] font-semibold leading-tight ${acc.profit >= 0 ? "text-up" : "text-down"}`}>
                 {acc.profitPct >= 0 ? "+" : ""}
                 {acc.profitPct.toFixed(1).replace(".", ",")} %
@@ -310,7 +310,7 @@ export default function EchoChartPage() {
             <summary className="cursor-pointer">Wie wird gezählt?</summary>
             <p className="mt-1">
               Trades und Konto nach denselben Regeln wie Chancen und Turnier: Shorts nur bei bärischem Gesamtmarkt, Sektor-Regel für Tech-Werte, Chance bis zum Ziel mindestens 15 %, nur die obere Hälfte nach Potenzial, Blau mit Blau-Regel. Die Zonen-Quote oben zählt dagegen alle Zonen (Qualität der Zonen).{" "}
-              Konto: {ACCOUNT.start.toLocaleString("de-DE")} € Start, {ACCOUNT.stake} € je Trade (nur wenn genug Geld frei ist, je Wert eine Position), 7,90 € Gebühr je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im selben Jahr – alles netto. Wechselkurs-Schwankungen sind hier nicht eingerechnet.{" "}
+              Konto: {ACCOUNT.start.toLocaleString("de-DE")} € Start, {ACCOUNT.stake.toLocaleString("de-DE")} € je Trade (nur wenn genug Geld frei ist, je Wert eine Position), 7,90 € Gebühr je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im selben Jahr – alles netto. Wechselkurs-Schwankungen sind hier nicht eingerechnet.{" "}
               Wie bei HKCM: Eine Zone hat gehalten, wenn der Kurs hineinläuft, vor der Unterkante dreht und oben wieder herausläuft (bei Short umgekehrt). Fällt er vorher unter die Unterkante, ist sie gescheitert. Zonen, die der Kurs nie erreicht hat, zählen nicht. Blacktrader kennt dabei immer nur die Kurse bis zum jeweiligen Tag. Gute Ergebnisse von früher sind keine Garantie für die Zukunft.
             </p>
           </details>

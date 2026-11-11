@@ -5,7 +5,8 @@ import { learnedWeightCells, refreshTrainerParams, useTrainerVersion } from "@/l
 import { disablePush, enablePush, pushEnabled, testPush } from "@/lib/client/push";
 import { playTone, requestNotificationPermission } from "@/lib/client/alerts";
 import { DEFAULT_WEIGHTS } from "@/lib/analysis/score";
-import { actions, DEFAULT_SETTINGS, useAppData } from "@/lib/store/store";
+import { actions, DEFAULT_SETTINGS, normalizeCapital, useAppData } from "@/lib/store/store";
+import { ACCOUNT, ADD, addStakeFor, LOW_STAKE_WARN, stakeFor } from "@/lib/client/account";
 import { HORIZON_INTERVALS, HORIZON_LABEL, KIND_LABEL, type AssetKind, type Horizon, type Interval } from "@/lib/types";
 
 const cellName = (c: string) => {
@@ -60,6 +61,64 @@ function PushSettings() {
       <p className="text-[13px] text-stone-500">
         iPhone: App zuerst über „Zum Home-Bildschirm“ hinzufügen und von dort öffnen. Der Server prüft einmal täglich; öfter mit einem kostenlosen Zeitplan-Dienst (siehe Anleitung).
       </p>
+    </div>
+  );
+}
+
+const eurInt = (n: number) => `${Math.round(n).toLocaleString("de-DE")} €`;
+
+/** Startkapital je Benutzer: Einsatz je Trade und Nachkauf folgen im getesteten Verhältnis (8.000 € → 500 € / 250 €). */
+function CapitalSettings({ capital }: { capital: number }) {
+  const [text, setText] = useState(String(capital));
+  useEffect(() => setText(String(capital)), [capital]);
+  const typed = Number(text.replace(/\./g, "").replace(",", "."));
+  const preview = Number.isFinite(typed) && typed > 0 ? normalizeCapital(typed) : capital;
+  const stake = stakeFor(preview);
+  const add = addStakeFor(preview);
+  const changed = preview !== capital;
+  const save = () => {
+    actions.setSettings({ capitalEur: preview });
+    setText(String(preview));
+  };
+  return (
+    <div className="space-y-3">
+      <label className="block text-[14px] text-stone-300">
+        Startkapital in €
+        <div className="mt-1 flex gap-2">
+          <input
+            className="input num"
+            inputMode="numeric"
+            value={text}
+            onChange={(e) => setText(e.target.value.replace(/[^0-9.,]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && save()}
+            aria-label="Startkapital in Euro"
+          />
+          <button className={`btn ${changed ? "btn-primary" : ""}`} disabled={!changed} onClick={save}>
+            Speichern
+          </button>
+        </div>
+      </label>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl bg-white/5 p-2">
+          <div className="text-[12px] text-stone-400">Konto</div>
+          <div className="num text-[16px] text-gold-light">{eurInt(preview)}</div>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2">
+          <div className="text-[12px] text-stone-400">je Trade</div>
+          <div className="num text-[16px] text-gold-light">{eurInt(stake)}</div>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2">
+          <div className="text-[12px] text-stone-400">Nachkauf</div>
+          <div className="num text-[16px] text-sky-300">
+            {ADD.max} × {eurInt(add)}
+          </div>
+        </div>
+      </div>
+      {stake < LOW_STAKE_WARN && (
+        <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-[14px] text-amber-200">
+          Achtung: Bei {eurInt(stake)} je Trade kosten Kauf und Verkauf zusammen {(((2 * ACCOUNT.fee) / stake) * 100).toFixed(1).replace(".", ",")} % ({(2 * ACCOUNT.fee).toFixed(2).replace(".", ",")} € Gebühr). Das frisst einen großen Teil des Gewinns.
+        </p>
+      )}
     </div>
   );
 }
@@ -128,6 +187,10 @@ export default function SettingsPage() {
           <input type="checkbox" className="h-5 w-5 accent-[#C9A24A]" checked={s.haptics} onChange={(e) => actions.setSettings({ haptics: e.target.checked })} />
           Vibration bei Alarm und Trade-Übernahme (Android)
         </label>
+      </Section>
+
+      <Section title="Mein Kapital">
+        <CapitalSettings capital={s.capitalEur} />
       </Section>
 
       <Section title="Gewichtung des Gesamtscores" hint="Gesamtscore = Elliott × w₁ + Fundamental/News × w₂ + Volumen/RSI × w₃. Feste Grenzen: Elliott-Wellen mindestens 60 %, die anderen mindestens 10 %, zusammen immer 100 %.">

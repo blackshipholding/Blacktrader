@@ -9,7 +9,7 @@ import { analyzeElliott } from "../analysis/elliott";
 import { assessLongTerm, blendedReturn, type LongTermAction, type LongTermZone } from "../analysis/longterm";
 import { money } from "../analysis/persona";
 import { actions, getData, type LongTermProposal, type Trade } from "../store/store";
-import { ADD, canAfford, freeCash, noMoney, noTwice } from "./account";
+import { ACCOUNT, ADD, canAfford, freeCash, noMoney, noTwice } from "./account";
 import { nachkaufState, openPositions } from "./nachkauf";
 import type { Candle, Horizon, Interval, ResolvedAsset } from "../types";
 
@@ -74,7 +74,7 @@ export function openLongTermTrade(asset: Asset, z: LongTermZone, horizon: Horizo
     targets: [...z.targets],
     openedAt: now,
     nachkauf: nk || undefined,
-    reason: nk ? `Nachkauf (250 €) im neuen blauen Bereich ${money(z.zoneTop, asset.currency)} – ${money(z.zoneBottom, asset.currency)}. Kein fester Stop – ungültig bei Schlusskurs unter ${money(z.invalidation, asset.currency)}.` : `Langfristiger Einstieg in drei Teilen ${money(z.zoneTop, asset.currency)} – ${money(z.zoneBottom, asset.currency)}. Kein fester Stop – ungültig bei Schlusskurs unter ${money(z.invalidation, asset.currency)}. Teilausstieg oder Stop nur, wenn sich die Wellenzählung ändert.`,
+    reason: nk ? `Nachkauf (${ADD.stake.toLocaleString("de-DE")} €) im neuen blauen Bereich ${money(z.zoneTop, asset.currency)} – ${money(z.zoneBottom, asset.currency)}. Kein fester Stop – ungültig bei Schlusskurs unter ${money(z.invalidation, asset.currency)}.` : `Langfristiger Einstieg in drei Teilen ${money(z.zoneTop, asset.currency)} – ${money(z.zoneBottom, asset.currency)}. Kein fester Stop – ungültig bei Schlusskurs unter ${money(z.invalidation, asset.currency)}. Teilausstieg oder Stop nur, wenn sich die Wellenzählung ändert.`,
     score: 0,
     signal: "buy",
     pattern: "Langfrist-Einstiegsbereich",
@@ -203,7 +203,7 @@ export function refillWaiting(t: Trade): { tranches: NonNullable<Trade["tranches
   if (t.strategy !== "longterm" || t.status === "closed" || t.kind === "crypto") return null;
   const rows = trancheRows(t);
   if (rows.length < 2 || rows.every((x) => x.filledAt) || rows.some((x) => !(x.qty > 0) || !(x.eur > 0))) return null;
-  const budget = t.nachkauf ? ADD.stake : 500;
+  const budget = t.nachkauf ? ADD.stake : ACCOUNT.stake;
   const q = fillShares(rows.map((x) => ({ priceEur: x.eur / x.qty, qty: x.qty, fixed: !!x.filledAt })), budget, budget + (OVER_BUDGET * budget) / 500);
   if (q.every((n, i) => n === rows[i].qty)) return null;
   const tranches = rows.map((x, i) => ({ price: x.price, filledAt: x.filledAt, qty: q[i], eur: q[i] * (x.eur / x.qty) }));

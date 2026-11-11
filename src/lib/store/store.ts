@@ -143,6 +143,9 @@ export interface Settings {
   depotNames: string[];
   /** Zuletzt gewähltes Depot (1-basiert) – Vorauswahl beim Übernehmen */
   lastDepot: number;
+  /** Startkapital des Blacktrader-Kontos in € (je Benutzer einstellbar). Einsatz je Trade und Nachkauf werden daraus im
+   *  getesteten Verhältnis berechnet (8.000 € → 500 € je Trade, Nachkauf 250 €). Turnier/Trainer bleiben fest bei 8.000 €. */
+  capitalEur: number;
   keys: {
     finnhub: string;
     alphavantage: string;
@@ -174,6 +177,15 @@ export interface AppData {
   weekly?: { at: number; equity: number; ziel: number; stop: number; bhValue?: number } | null;
 }
 
+/** Erlaubtes Startkapital: 1.000 € bis 10 Mio. €, auf ganze 100 € gerundet; ungültig → 8.000 € */
+export const CAPITAL_MIN = 1000;
+export const CAPITAL_MAX = 10_000_000;
+export function normalizeCapital(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 8000;
+  return Math.min(CAPITAL_MAX, Math.max(CAPITAL_MIN, Math.round(n / 100) * 100));
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   weights: DEFAULT_WEIGHTS,
   weightsMode: "trainer",
@@ -189,6 +201,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoBackupFile: true,
   depotNames: ["Depot 1", "Depot 2", "Depot 3", "Depot 4"],
   lastDepot: 1,
+  capitalEur: 8000,
   keys: { finnhub: "", alphavantage: "", openfigi: "", llm: "", llmProvider: "anthropic", llmModel: "" },
 };
 
@@ -235,6 +248,7 @@ function sanitize(raw: unknown): AppData {
       autoTrade: false,
       depotNames: Array.from({ length: 4 }, (_, i) => (Array.isArray(s.depotNames) && typeof s.depotNames[i] === "string" && s.depotNames[i].trim() ? s.depotNames[i].trim().slice(0, 24) : `Depot ${i + 1}`)),
       lastDepot: [1, 2, 3, 4].includes(Number(s.lastDepot)) ? Number(s.lastDepot) : 1,
+      capitalEur: normalizeCapital(s.capitalEur),
     },
   };
 }

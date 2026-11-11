@@ -1,14 +1,52 @@
 // Blacktrader-Konto im Depot: echtes Geld-Modell statt „jeder Trade mit dem ganzen Geld“.
+// Startkapital stellt jeder Benutzer selbst ein (Standard 8.000 €). Einsatz je Trade = 1/16 davon (8.000 € → 500 €),
+// Nachkauf = halber Einsatz (250 €), höchstens 4 × – dasselbe Verhältnis wie im Härtetest. Unten „8.000 €/500 €“ = Standard.
 // 8.000 € Start, 500 € je Trade (echter Betrag aus Stück × Kurs, bis 50 € darüber), 7,90 € Gebühr je Order (flatex), 27,5 % KESt sofort bei Gewinn mit Verlustausgleich
 // im selben Kalenderjahr. Langfrist-Trades (blau): 500 € gesamt, jede ausgeführte Teil-Order kostet eine Gebühr.
 // Reicht das Geld nicht für einen neuen Trade (500 € + Gebühr), wird nichts übernommen. Ohne Geld UND ohne offene
 // Position ist das Konto leer (pleite) – Neustart mit 8.000 €; alte Trades bleiben als frühere Runde sichtbar.
 import type { Trade } from "../store/store";
 import { KestYear } from "../analysis/kest";
+import { getData, normalizeCapital } from "../store/store";
 
-export const ACCOUNT = { start: 8000, stake: 500, fee: 7.9, tax: 0.275 } as const;
-/** Nachkauf nur bei Blau: höchstens 4 × 250 € je Wert (zusätzlich zum ersten Einstieg mit 500 €) */
-export const ADD = { max: 4, stake: 250 } as const;
+/** Getestetes Verhältnis: Einsatz je Trade = Startkapital ÷ 16 (8.000 € → 500 €); Nachkauf = halber Einsatz */
+export const STAKE_SHARE = 500 / 8000;
+export const ADD_SHARE = 0.5;
+/** Unter diesem Einsatz je Trade fressen die festen 7,90 € je Order einen großen Teil des Gewinns */
+export const LOW_STAKE_WARN = 250;
+
+/** Einsatz je Trade für ein Startkapital (auf ganze € gerundet) */
+export const stakeFor = (capital: number) => Math.round(normalizeCapital(capital) * STAKE_SHARE);
+/** Nachkauf-Betrag für ein Startkapital */
+export const addStakeFor = (capital: number) => Math.round(stakeFor(capital) * ADD_SHARE);
+
+/** Eingestelltes Startkapital (ohne Browser/Einstellung: 8.000 €) */
+export function capitalNow(): number {
+  try {
+    return normalizeCapital(getData().settings.capitalEur);
+  } catch {
+    return 8000;
+  }
+}
+
+/** Konto-Regeln – Start und Einsatz folgen dem eingestellten Startkapital, Gebühr und KESt sind fest. */
+export const ACCOUNT = {
+  get start() {
+    return capitalNow();
+  },
+  get stake() {
+    return stakeFor(capitalNow());
+  },
+  fee: 7.9,
+  tax: 0.275,
+} as const;
+/** Nachkauf nur bei Blau: höchstens 4 × halber Einsatz je Wert (Standard 4 × 250 € zusätzlich zum ersten Einstieg mit 500 €) */
+export const ADD = {
+  max: 4,
+  get stake() {
+    return addStakeFor(capitalNow());
+  },
+} as const;
 
 const yearOf = (ms: number) => new Date(ms).getUTCFullYear();
 /** Eingesetzter Betrag eines Trades (Stück × Kurs beim Übernehmen; ältere Trades: 500 €) */
@@ -155,7 +193,7 @@ export const canAfford = (trades: Trade[], resets: number[], amount: number = AC
 /** Hinweis, wenn das Geld für einen neuen Trade nicht reicht (direkt in der App sichtbar) */
 export function noMoney(free?: number) {
   const f = free == null ? "" : ` Frei sind ${free.toFixed(2).replace(".", ",")} €.`;
-  const text = `Nicht genug Geld: Für einen neuen Trade brauchst du ${ACCOUNT.stake} € + ${ACCOUNT.fee.toFixed(2).replace(".", ",")} € Gebühr.${f} Erst muss ein offener Trade schließen – oder im Depot neu starten, wenn das Konto leer ist.`;
+  const text = `Nicht genug Geld: Für einen neuen Trade brauchst du ${ACCOUNT.stake.toLocaleString("de-DE")} € + ${ACCOUNT.fee.toFixed(2).replace(".", ",")} € Gebühr.${f} Erst muss ein offener Trade schließen – oder im Depot neu starten, wenn das Konto leer ist.`;
   if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(text);
 }
 
@@ -238,5 +276,5 @@ export function simulateAccount(trades: SimTrade[]): SimResult {
 
 /** Hinweis: Wert liegt schon im Depot – nachkaufen nur bei blauen Einstiegen */
 export function noTwice() {
-  if (typeof window !== "undefined" && typeof window.alert === "function") window.alert("Diesen Wert hast du schon im Depot. Nachkaufen geht nur bei einem weiteren blauen (langfristigen) Einstieg – höchstens 4 × 250 €.");
+  if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(`Diesen Wert hast du schon im Depot. Nachkaufen geht nur bei einem weiteren blauen (langfristigen) Einstieg – höchstens ${ADD.max} × ${ADD.stake.toLocaleString("de-DE")} €.`);
 }

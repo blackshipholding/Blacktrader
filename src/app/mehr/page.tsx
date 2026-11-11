@@ -46,7 +46,7 @@ export default function MehrPage() {
         <Row href="/echochart" icon={<IconChart className="h-6 w-6" />} title="EchoChart" text="Wie gut wäre Blacktrader früher gewesen?" />
         <Row href="/trainer" icon={<IconSpark className="h-6 w-6" />} title="Trainer" text="Trefferquote, Lernschritte, Versionen" />
         <Row href="/regelwerk" icon={<IconShield className="h-6 w-6" />} title="Regelwerk" text="Wann Blacktrader etwas ändern darf – und was nie" />
-        <Row href="/einstellungen" icon={<IconGear className="h-6 w-6" />} title="Einstellungen" text="Gewichtung, Kerzen, Alarme, Schlüssel, Export" />
+        <Row href="/einstellungen" icon={<IconGear className="h-6 w-6" />} title="Einstellungen" text="Kapital, Gewichtung, Alarme, Schlüssel, Export" />
       </div>
 
       <section className="card space-y-3 p-4">

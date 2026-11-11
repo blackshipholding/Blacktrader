@@ -184,7 +184,7 @@ export default function DepotPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] text-gold">Depot</h1>
-          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto: ${ACCOUNT.start.toLocaleString("de-DE")} € Start, ${ACCOUNT.stake} € je Trade.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
+          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto: ${ACCOUNT.start.toLocaleString("de-DE")} € Start, ${ACCOUNT.stake.toLocaleString("de-DE")} € je Trade.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
         </div>
         {tab === "bt" && <Legend />}
       </div>
@@ -297,7 +297,7 @@ function BlacktraderDepot() {
       ) : (
         acc.blocked && (
           <div className="card edge-wait p-4 text-[15px] text-amber-100">
-            Zu wenig freies Geld für einen neuen Trade ({ACCOUNT.stake} € + {ACCOUNT.fee.toFixed(2).replace(".", ",")} € Gebühr). Neue Trades gehen erst wieder, wenn ein offener Trade schließt.
+            Zu wenig freies Geld für einen neuen Trade ({ACCOUNT.stake.toLocaleString("de-DE")} € + {ACCOUNT.fee.toFixed(2).replace(".", ",")} € Gebühr). Neue Trades gehen erst wieder, wenn ein offener Trade schließt.
           </div>
         )
       )}
@@ -404,7 +404,7 @@ function BlacktraderDepot() {
         <button
           className="btn-danger w-full"
           onClick={() => {
-            if (window.confirm("Alle Blacktrader-Trades löschen? Das Konto startet wieder mit 8.000 €. Was Blacktrader gelernt hat, bleibt erhalten.")) actions.clearTrades();
+            if (window.confirm(`Alle Blacktrader-Trades löschen? Das Konto startet wieder mit ${ACCOUNT.start.toLocaleString("de-DE")} €. Was Blacktrader gelernt hat, bleibt erhalten.`)) actions.clearTrades();
           }}
         >
           Blacktrader-Depot löschen

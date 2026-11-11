@@ -11,6 +11,7 @@ import { effectiveLevels, openLongTermTrade } from "@/lib/client/longterm";
 import { nachkaufState } from "@/lib/client/nachkauf";
 import type { ScanEntry } from "@/lib/client/scanner";
 import { getData, useAppData } from "@/lib/store/store";
+import { ADD } from "@/lib/client/account";
 
 export function NachkaufBox({ entry }: { entry: ScanEntry | undefined }) {
   const trades = useAppData((d) => d.trades);
@@ -25,17 +26,17 @@ export function NachkaufBox({ entry }: { entry: ScanEntry | undefined }) {
     <div className="mt-2 rounded-xl border border-sky-400/40 bg-sky-500/10 p-3 text-[14px]" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between gap-2">
         <span className="badge-core">Nachkauf möglich</span>
-        <span className="text-[13px] text-sky-200">noch {nk.left} von 4</span>
+        <span className="text-[13px] text-sky-200">noch {nk.left} von {ADD.max}</span>
       </div>
       <p className="mt-1.5 text-sky-100">
         Neuer blauer Bereich {money(lt.zoneTop, cur)} – {money(lt.zoneBottom, cur)} · ungültig unter {money(lt.invalidation, cur)}
       </p>
       <button className="btn-primary mt-2 w-full" onClick={() => setOpen(true)}>
-        Nachkauf übernehmen (250 €)
+        Nachkauf übernehmen ({ADD.stake.toLocaleString("de-DE")} €)
       </button>
       <ConfirmSheet
         open={open}
-        title="Nachkauf (250 €)"
+        title={`Nachkauf (${ADD.stake.toLocaleString("de-DE")} €)`}
         confirm="Order legen"
         onClose={() => setOpen(false)}
         onConfirm={() => {

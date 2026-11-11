@@ -131,3 +131,30 @@ describe("Blau in drei Teilen: Gewinn/Verlust nur auf den gekauften Teil", () =>
     expect(r.equity).toBeCloseTo(8000 - 7.9 - 7.9 - 33.6, 6);
   });
 });
+
+describe("Startkapital je Benutzer", () => {
+  it("Einsatz und Nachkauf im getesteten Verhältnis (8.000 € → 500 € / 250 €)", async () => {
+    const { stakeFor, addStakeFor } = await import("../src/lib/client/account");
+    expect(stakeFor(8000)).toBe(500);
+    expect(addStakeFor(8000)).toBe(250);
+    expect(stakeFor(16000)).toBe(1000);
+    expect(addStakeFor(16000)).toBe(500);
+    expect(stakeFor(4000)).toBe(250);
+    expect(addStakeFor(4000)).toBe(125);
+  });
+  it("ungültige Eingaben werden begrenzt bzw. auf 8.000 € gesetzt", async () => {
+    const { normalizeCapital } = await import("../src/lib/store/store");
+    expect(normalizeCapital("abc")).toBe(8000);
+    expect(normalizeCapital(-5)).toBe(8000);
+    expect(normalizeCapital(undefined)).toBe(8000);
+    expect(normalizeCapital(200)).toBe(1000);
+    expect(normalizeCapital(12345)).toBe(12300);
+    expect(normalizeCapital(1e9)).toBe(10_000_000);
+  });
+  it("ohne Einstellung (Server/Test) gilt der Standard 8.000 €", async () => {
+    const { ACCOUNT, ADD } = await import("../src/lib/client/account");
+    expect(ACCOUNT.start).toBe(8000);
+    expect(ACCOUNT.stake).toBe(500);
+    expect(ADD).toMatchObject({ max: 4, stake: 250 });
+  });
+});
