@@ -22,7 +22,7 @@ import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
 import { PositionCard } from "@/components/PositionCard";
 import { blueGroups } from "@/lib/client/position";
-import { HeldStatus } from "@/components/StatusLine";
+import { HeldGauge } from "@/components/NeutralGauge";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const signed = (x: number, d = 2) => `${x >= 0 ? "+" : ""}${x.toFixed(d).replace(".", ",")} %`;
@@ -98,7 +98,7 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
         </div>
         {t.status !== "closed" && (
           <div className="mt-2">
-            <HeldStatus kind={t.kind} symbol={t.symbol} />
+            <HeldGauge kind={t.kind} symbol={t.symbol} />
           </div>
         )}
         {stopHint && (

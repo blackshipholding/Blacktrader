@@ -10,7 +10,7 @@ import { eurPerUnit } from "@/lib/fx";
 import type { Trade } from "@/lib/store/store";
 import { ProposalBox } from "./ProposalBox";
 import { Sheet } from "./Sheet";
-import { HeldStatus } from "./StatusLine";
+import { HeldGauge } from "./NeutralGauge";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const qtyStr = (q: number) => q.toLocaleString("de-DE", { maximumFractionDigits: 4 });
@@ -66,7 +66,7 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
       </div>
 
       <div className="mt-2">
-        <HeldStatus kind={first.kind} symbol={first.symbol} />
+        <HeldGauge kind={first.kind} symbol={first.symbol} />
       </div>
 
       {group.map((t) => t.proposal && <ProposalBox key={`p${t.id}`} t={t} price={price} />)}

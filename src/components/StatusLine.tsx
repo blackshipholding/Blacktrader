@@ -4,8 +4,7 @@
 import type { BestEntry } from "@/lib/analysis/bestEntry";
 import type { WaveCount } from "@/lib/analysis/elliott";
 import { money } from "@/lib/analysis/persona";
-import { useScan, type ScanEntry } from "@/lib/client/scanner";
-import type { AssetKind } from "@/lib/types";
+import type { ScanEntry } from "@/lib/client/scanner";
 import { nextPhrase } from "./waveText";
 
 export type StatusTone = "gelb" | "gruen" | "rot" | "blau" | "warn" | "info";
@@ -74,11 +73,4 @@ export function StatusLine({ s, compact = false, children }: { s: Status; compac
       {children}
     </div>
   );
-}
-
-/** Depot: „Du bist investiert. Als Nächstes wird … erwartet.“ (Analyse aus der laufenden Suche) */
-export function HeldStatus({ kind, symbol }: { kind: AssetKind; symbol: string }) {
-  const scan = useScan();
-  const e = scan.entries.find((x) => x.asset.kind === kind && x.asset.symbol === symbol);
-  return <StatusLine compact s={{ tone: "info", title: "Du bist investiert.", text: e ? expectText(waveOf(e)) : scan.busy ? "Blacktrader rechnet …" : null }} />;
 }

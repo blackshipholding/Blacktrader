@@ -1,5 +1,4 @@
 "use client";
-import { ScenarioBar } from "./ScenarioBar";
 import { useState } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
@@ -54,7 +53,7 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
       <ScoreBar value={inv(a.elliott.score)} label={expert ? `Elliott (${Math.round((w.elliott / sum) * 100)} %)` : mode === "rot" ? "Chartbild (fallend)" : "Chartbild"} />
       <ScoreBar value={inv(a.fundamental.score)} label={expert ? `Fundamental/News (${Math.round((w.fundamental / sum) * 100)} %)` : mode === "rot" ? "Firmenzahlen & Nachrichten (Schwäche)" : "Firmenzahlen & Nachrichten"} />
       <ScoreBar value={inv(a.volume.score)} label={expert ? `Volumen/RSI (${Math.round((w.volume / sum) * 100)} %)` : mode === "rot" ? "Verkaufsdruck" : "Kaufinteresse"} />
-      {mode !== "gelb" ? <ScenarioBar elliott={a.elliott} /> : <NeutralGauge score={a.total} />}
+      <NeutralGauge score={a.total} prefix={mode === "gruen" ? "Kauf" : mode === "rot" ? "Short" : "Abwarten"} />
       {expert && a.decision.vetoes.length > 0 && (
         <div className="rounded-lg border border-gold/20 bg-black/40 p-2 text-xs text-stone-300">
           Roh-Signal „{SIGNAL_LABEL[a.decision.rawLevel]}“ neutralisiert: {a.decision.vetoes.join("; ")}.
@@ -454,7 +453,7 @@ export function LongTermSignalCard({ a, zone, currency }: { a: AnalysisResult; z
       <ScoreBar value={s.chart} label={expert ? `Langfrist-Struktur (Chance/Risiko ${s.crv.toFixed(1).replace(".", ",")}, ${zone.context})` : "Chartbild (langfristig)"} />
       <ScoreBar value={s.fundamental} label="Firmenzahlen & Nachrichten" />
       <ScoreBar value={s.volume} label="Kaufinteresse" />
-      <ScenarioBar elliott={a.elliott} />
+      <NeutralGauge score={a.total} prefix="Langfristig" />
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
         <dt className="text-stone-400">Richtung</dt>
         <dd className="text-sky-200">Langfristig steigend (Welle 3)</dd>

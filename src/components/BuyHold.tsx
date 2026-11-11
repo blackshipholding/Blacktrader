@@ -12,7 +12,7 @@ import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client
 import { toEur } from "@/lib/fx";
 import { actions, useAppData } from "@/lib/store/store";
 import type { ResolvedAsset } from "@/lib/types";
-import { expectText, StatusLine, waveOf } from "./StatusLine";
+import { NeutralGauge, scoreOf } from "./NeutralGauge";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const pct = (x: number) => `${x > 0 ? "+" : ""}${x.toFixed(2).replace(".", ",")} %`;
@@ -61,7 +61,8 @@ function BlacktraderView({ h }: { h: Holding }) {
   const t = holdTrend(e);
   return (
     <div className="mt-1.5">
-      <StatusLine compact s={{ tone: t === -1 ? "warn" : "info", title: t === 1 ? "Großer Trend steigend." : t === -1 ? "Großer Trend fallend – prüfe deine Position." : "Großer Trend unklar.", text: expectText(waveOf(e)) }} />
+      <NeutralGauge score={scoreOf(e)} prefix="Investiert" />
+      {t === -1 && <p className="mt-1.5 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-[13px] text-red-200">Großer Trend fallend – prüfe deine Position.</p>}
     </div>
   );
 }

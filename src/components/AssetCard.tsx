@@ -15,7 +15,6 @@ import type { LiveStatus } from "@/lib/client/market";
 import type { ScanEntry } from "@/lib/client/scanner";
 import { getData, useAppData } from "@/lib/store/store";
 import { HORIZON_LABEL, type Candle, type Horizon, type ResolvedAsset } from "@/lib/types";
-import { ScenarioBar } from "./ScenarioBar";
 import { MiniChart } from "./MiniChart";
 import { miniView } from "./miniView";
 import { waveCaption } from "./waveText";
@@ -23,7 +22,7 @@ import { ConfirmSheet } from "./Sheet";
 import { MarketNote } from "./DepotPicker";
 import { StatusPill } from "./StatusPill";
 import { ADD } from "@/lib/client/account";
-import { NeutralGauge } from "./NeutralGauge";
+import { GAUGE_PREFIX, NeutralGauge } from "./NeutralGauge";
 import { entryStatus, StatusLine } from "./StatusLine";
 
 const RISK_LIMIT = 15; // % Abstand Einstieg–Stop, ab dem "Hohes Risiko" angezeigt wird
@@ -210,7 +209,7 @@ export function AssetCard({
             </StatusLine>
           )}
 
-          {b.color !== "gelb" ? <ScenarioBar elliott={res?.elliott} /> : <NeutralGauge score={res?.total} />}
+          <NeutralGauge score={res?.total ?? entry?.best.res?.total} prefix={GAUGE_PREFIX[b.color]} />
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
           {(b.color === "gruen" || b.color === "rot") && (
