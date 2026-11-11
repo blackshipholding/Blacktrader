@@ -26,7 +26,7 @@ describe("Ein Satz je Farbe (ohne Wellennummern)", () => {
 describe("Shipmaster-Betrag im Satz (nur Detailansicht)", () => {
   it("Grün und Blau nennen den Betrag, Gelb nicht", () => {
     const g = entryStatus({ color: "gruen", key: "x", reason: "", zoneTop: 124, zoneBottom: 120 }, undefined, "EUR", 1070.92);
-    expect(g.text).toContain("Shipmaster: 1.071 €.");
+    expect(g.text).toContain("Shipmaster 0.1: 1.071 €.");
     const y = entryStatus({ color: "gelb", key: "g", reason: "" }, undefined, "EUR", 1000);
     expect(y.text ?? "").not.toContain("Shipmaster");
   });

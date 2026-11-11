@@ -47,7 +47,7 @@ export const expectText = (c: WaveCount | undefined, could = false) => {
 export function entryStatus(b: BestEntry, wave: WaveCount | undefined, cur?: string, amountEur?: number): Status {
   const s = entryStatusBase(b, wave, cur);
   if (amountEur != null && amountEur > 0 && (b.color === "gruen" || b.color === "blau"))
-    s.text = `${s.text ? s.text + " " : ""}Shipmaster: ${Math.round(amountEur).toLocaleString("de-DE")} €.`;
+    s.text = `${s.text ? s.text + " " : ""}Shipmaster 0.1: ${Math.round(amountEur).toLocaleString("de-DE")} €.`;
   return s;
 }
 

@@ -21,7 +21,7 @@ export const RULES_A: Rule[] = [
   { id: "A2", title: "Shipmaster 0.1: Einsatz", text: `1. Kauf ${RULES.first * 100} % vom Kontostand (Blau in 3 Teilen), Nachkauf nur bei Blau – höchstens ${RULES.addMax} × ${RULES.add * 100} %, erst wenn der Kurs die erste blaue Zone verlassen hat. Eine Position je Wert, Stop und Ziel aus der Zone, Chance-Risiko mindestens ${LOCKED.minRiskReward}.` },
   { id: "A3", title: "Konto, Gebühren, Steuer", text: `Startkapital trägst du im Depot ein (Standard ${eur(RULES.start)}, darunter handelt Blacktrader nicht), ${eur(RULES.fee)} je Order (flatex), ${(RULES.tax * 100).toLocaleString("de-DE")} % KESt mit Verlustausgleich im Kalenderjahr.` },
   { id: "A4", title: "Feste Handelsregeln", text: `Keine Shorts (rote Signale nur als Info im Bärenmarkt), Sektor-Regel, ein Signal je Wert, grüne Box bis 1 % über dem Stop, Finanz-Filter (live), Blau-Regel ${BLUE_RULE.enabled ? "an" : "aus"}.` },
-  { id: "A5", title: "Prüfregeln selbst", text: "Die Regeln B1–B9 und C1–C4 kann Blacktrader nicht lockern. Er lernt nicht aus deinen Käufen und Verkäufen und nie die Geld-Regeln von Shipmaster." },
+  { id: "A5", title: "Prüfregeln selbst", text: "Die Regeln B1–B9 und C1–C4 kann Blacktrader nicht lockern. Er lernt nicht aus deinen Käufen und Verkäufen und nie die Geld-Regeln von Shipmaster 0.1." },
 ];
 
 /** B – ein neuer Lern-Stand wird nur gespeichert, wenn ALLE Bedingungen erfüllt sind */
@@ -32,7 +32,7 @@ export const RULES_B: Rule[] = [
   { id: "B4", title: "Rückgang nicht schlechter", text: "Der größte zwischenzeitliche Verlust darf nicht größer werden." },
   { id: "B5", title: "Genug Signale", text: `Höchstens ${Math.round(LOCKED.acceptance.maxSignalDrop * 100)} % weniger Signale pro Monat; die Mindest-Signalstärke darf nur steigen.` },
   { id: "B6", title: "Beständig", text: "In mindestens drei von vier Prüfzeiträumen besser, nicht nur im Durchschnitt." },
-  { id: "B7", title: "Turnier-Prüfung", text: `Mit dem neuen Stand spielt Blacktrader alle ${RULES.reps} Turnier-Zeiträume (${RULES.years} Jahre, je ${TOURNEY_CAPS.length} Depotgrößen ab ${eur(TOURNEY_CAPS[0])}, Shipmaster-Regeln, Gebühren, KESt) – er darf im Schnitt nicht schlechter sein und nie öfter ausscheiden.` },
+  { id: "B7", title: "Turnier-Prüfung", text: `Mit dem neuen Stand spielt Blacktrader alle ${RULES.reps} Turnier-Zeiträume (${RULES.years} Jahre, je ${TOURNEY_CAPS.length} Depotgrößen ab ${eur(TOURNEY_CAPS[0])}, Regeln von Shipmaster 0.1, Gebühren, KESt) – er darf im Schnitt nicht schlechter sein und nie öfter ausscheiden.` },
   { id: "B8", title: "Härtetest", text: `Rund 6.000 Kunden (jeder Wochen-Start × ${HT_CAPS.length} Depotgrößen von ${eur(HT_CAPS[0])} bis ${eur(HT_CAPS[HT_CAPS.length - 1])}, je ${RULES.years} Jahre). Der neue Stand muss netto mindestens +${(HT_MIN_GAIN * 100).toLocaleString("de-DE")} Punkte pro Jahr besser sein und alle Prüfungen bestehen: beide Zeithälften, bärische Zeiträume, nicht mehr Kunden mit Verlust, die schlechtesten 5 % nicht schlechter, Ausfall-Prüfung (5 × ohne 20 % der Werte, mind. 4 von 5), doppelte Gebühren und 0,5 % schlechtere Kurse. Die letzten ${HT_LOCK_YEARS} Jahre bleiben gesperrt – nur zur Schlusskontrolle.` },
   { id: "B9", title: "Gegner-Prüfung", text: "Gegen die 9 Gegner des Turniers (sie wechseln sich ab: TradingView-Bots, Bank-Analysten, bekannte Strategien und die stärksten aus dem Härtetest) darf der neue Stand in der Rangliste nicht abrutschen." },
 ];
