@@ -1,5 +1,4 @@
 "use client";
-import { ScenarioBar } from "./ScenarioBar";
 import { useState } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
@@ -53,7 +52,6 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
       <ScoreBar value={inv(a.elliott.score)} label={expert ? `Elliott (${Math.round((w.elliott / sum) * 100)} %)` : mode === "rot" ? "Chartbild (fallend)" : "Chartbild"} />
       <ScoreBar value={inv(a.fundamental.score)} label={expert ? `Fundamental/News (${Math.round((w.fundamental / sum) * 100)} %)` : mode === "rot" ? "Firmenzahlen & Nachrichten (Schwäche)" : "Firmenzahlen & Nachrichten"} />
       <ScoreBar value={inv(a.volume.score)} label={expert ? `Volumen/RSI (${Math.round((w.volume / sum) * 100)} %)` : mode === "rot" ? "Verkaufsdruck" : "Kaufinteresse"} />
-      {mode !== "gelb" && <ScenarioBar elliott={a.elliott} />}
       {expert && a.decision.vetoes.length > 0 && (
         <div className="rounded-lg border border-gold/20 bg-black/40 p-2 text-xs text-stone-300">
           Roh-Signal „{SIGNAL_LABEL[a.decision.rawLevel]}“ neutralisiert: {a.decision.vetoes.join("; ")}.
@@ -208,7 +206,6 @@ function CountBlock({ c, title, currency }: { c: WaveCount; title: string; curre
           <div className="font-semibold text-gold-light">{c.patternLabel}</div>
         </div>
         <div className="text-right text-xs text-stone-400">
-          <div>Wahrscheinlichkeit <span className="num text-stone-100">{Math.round(c.probability * 100)} %</span></div>
           <div>Fibo-Passung <span className="num text-stone-100">{Math.round(c.fib * 100)} %</span> · Grad {c.degree}</div>
         </div>
       </div>
@@ -255,7 +252,6 @@ export function WavePanel({ a }: { a: AnalysisResult }) {
                   <td>{c.labels.join("-")}</td>
                   <td>{c.degree}</td>
                   <td className={c.bias === 1 ? "text-up" : "text-down"}>{c.bias === 1 ? "↑" : "↓"}</td>
-                  <td className="num text-right">{Math.round(c.probability * 100)} %</td>
                 </tr>
               ))}
             </tbody>
@@ -453,7 +449,6 @@ export function LongTermSignalCard({ a, zone, currency }: { a: AnalysisResult; z
       <ScoreBar value={s.chart} label={expert ? `Langfrist-Struktur (Chance/Risiko ${s.crv.toFixed(1).replace(".", ",")}, ${zone.context})` : "Chartbild (langfristig)"} />
       <ScoreBar value={s.fundamental} label="Firmenzahlen & Nachrichten" />
       <ScoreBar value={s.volume} label="Kaufinteresse" />
-      <ScenarioBar elliott={a.elliott} />
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
         <dt className="text-stone-400">Richtung</dt>
         <dd className="text-sky-200">Langfristig steigend (Welle 3)</dd>

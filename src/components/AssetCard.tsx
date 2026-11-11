@@ -15,7 +15,6 @@ import type { LiveStatus } from "@/lib/client/market";
 import type { ScanEntry } from "@/lib/client/scanner";
 import { getData, useAppData } from "@/lib/store/store";
 import { HORIZON_LABEL, type Candle, type Horizon, type ResolvedAsset } from "@/lib/types";
-import { ScenarioBar } from "./ScenarioBar";
 import { MiniChart } from "./MiniChart";
 import { miniView } from "./miniView";
 import { waveCaption } from "./waveText";
@@ -209,7 +208,6 @@ export function AssetCard({
             <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[15px] text-amber-100">{b.waitFor ?? b.reason}</p>
           )}
 
-          {b.color !== "gelb" && <ScenarioBar elliott={res?.elliott} />}
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
           {(b.color === "gruen" || b.color === "rot") && <p className="text-[14px] text-stone-300">{b.reason}</p>}
@@ -218,7 +216,7 @@ export function AssetCard({
             <div className="rounded-xl border border-gold/20 bg-black/30 px-3 py-2 text-[13px] text-stone-300">
               {res.elliott.best ? (
                 <div className="text-gold-light">
-                  {res.elliott.best.patternLabel} · {res.elliott.best.phase} · Wahrscheinlichkeit {Math.round(res.elliott.best.probability * 100)} %
+                  {res.elliott.best.patternLabel} · {res.elliott.best.phase}
                 </div>
               ) : (
                 <div className="text-stone-400">Keine regelkonforme Wellenzählung</div>
