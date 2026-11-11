@@ -6,7 +6,7 @@ import { AssetCard } from "./AssetCard";
 import { AssetDetailView } from "./AssetDetail";
 import { Sheet } from "./Sheet";
 
-type Target = { asset: ResolvedAsset & { id?: string }; horizon?: Horizon; withEntry?: boolean; tipOnly?: boolean; onRemove?: () => void } | null;
+type Target = { asset: ResolvedAsset & { id?: string }; horizon?: Horizon; withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; onRemove?: () => void } | null;
 
 /** Einstieg von Blacktrader für einen Wert (aus der laufenden Suche) */
 function useEntry(asset?: ResolvedAsset): ScanEntry | undefined {
@@ -24,6 +24,7 @@ function Body({ target, close }: { target: NonNullable<Target>; close: () => voi
           entry={entry}
           hideOpen
           tipOnly={target.tipOnly}
+          fromDepot={target.fromDepot}
           onOpen={() => {}}
           onRemove={
             target.onRemove
@@ -49,7 +50,7 @@ export function useAssetSheet() {
     </Sheet>
   );
   return {
-    open: (asset: ResolvedAsset & { id?: string }, horizon?: Horizon, o: { withEntry?: boolean; tipOnly?: boolean; onRemove?: () => void } = {}) => setTarget({ asset, horizon, ...o }),
+    open: (asset: ResolvedAsset & { id?: string }, horizon?: Horizon, o: { withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; onRemove?: () => void } = {}) => setTarget({ asset, horizon, ...o }),
     sheet,
   };
 }

@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Black Ship Holding – Blacktrader",
-  "short_name": "Black Ship",
+  "name": "Blacktrader",
+  "short_name": "Blacktrader",
   "description": "Elliott-Wellen-, Fundamental- und Volumenanalyse mit Chancen, Watchlist und Journal.",
   "start_url": "/",
   "scope": "/",

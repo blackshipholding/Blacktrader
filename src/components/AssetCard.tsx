@@ -7,6 +7,7 @@ import { OrderSlip } from "./OrderSlip";
 import { displayCurrency } from "@/lib/client/eur";
 import { useState } from "react";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
+import type { TradePlan } from "@/lib/analysis/score";
 import type { BestEntry, HistEntry } from "@/lib/analysis/bestEntry";
 import { money } from "@/lib/analysis/persona";
 import { haptic } from "@/lib/client/alerts";
@@ -83,6 +84,7 @@ export function AssetCard({
   onRemove,
   hideOpen,
   tipOnly,
+  fromDepot,
 }: {
   asset: ResolvedAsset;
   /** Ergebnis von Blacktrader (fehlt, solange noch gerechnet wird) */
@@ -97,6 +99,8 @@ export function AssetCard({
   hideOpen?: boolean;
   /** Buy & Hold: nur Tipps von Shipmaster – keine Knöpfe, die ins Blacktrader-Konto übernehmen */
   tipOnly?: boolean;
+  /** Aus dem Blacktrader-Depot geöffnet: Farbe folgt dem Kauf (blau bleibt blau, grün bleibt grün – Nutzer 11.11.2026) */
+  fromDepot?: boolean;
 }) {
   const [confirm, setConfirm] = useState<null | "trade" | "longterm" | "nachkauf">(null);
   const [showPast, setShowPast] = useState(false);
@@ -107,10 +111,22 @@ export function AssetCard({
   const view: ReturnType<typeof viewCandles> = entry ? viewCandles(entry) : { candles: [], res: null };
   const res = view.res;
   const lastPrice = price ?? res?.price ?? entry?.ltCandles?.at(-1)?.close;
-  const plan = b?.color === "gruen" || b?.color === "rot" ? b.plan ?? null : null;
+  // Farbe folgt dem Kauf (nur aus dem Blacktrader-Depot): blau gekauft → blau, grün gekauft → grün, egal was die Analyse gerade zeigt
+  const openMine = trades.filter((t) => t.status !== "closed" && t.symbol === asset.symbol && t.kind === asset.kind);
+  const heldBlue = openMine.filter((t) => (t.strategy === "longterm" || t.strategy === "core") && t.lt).sort((x, y) => x.openedAt - y.openedAt).at(-1);
+  const heldGreen = openMine.find((t) => t.strategy !== "longterm" && t.strategy !== "core" && t.direction === "long");
+  const heldColor = fromDepot && b ? (heldBlue ? "blau" : heldGreen ? "gruen" : null) : null;
+  const show = heldColor ?? b?.color;
+  const keepBlue = heldColor === "blau" && b?.color !== "blau";
+  const keepGreen = heldColor === "gruen" && b?.color !== "gruen";
+  const heldPlan: TradePlan | null = keepGreen && heldGreen ? { direction: "long", entry: heldGreen.entry, stop: heldGreen.stop, targets: heldGreen.targets, riskReward: 0, orderType: "market", zoneStart: heldGreen.entry, zoneEnd: heldGreen.entry } : null;
+  const plan = keepBlue ? null : heldPlan ?? (b?.color === "gruen" || b?.color === "rot" ? b.plan ?? null : null);
   const isShort = plan?.direction === "short";
-  const lt = b?.color === "blau" ? b.lt ?? null : null;
-  const strength = plan ? signalStrength(b?.res) : null;
+  const lt = heldColor === "gruen" ? null : b?.color === "blau" ? b.lt ?? null : null;
+  // Gekaufte blaue Zone (neuester Kauf), wenn die Analyse gerade etwas anderes zeigt
+  const ownLt = keepBlue && heldBlue?.lt ? heldBlue.lt : null;
+  const ltGrid = lt ?? (ownLt ? { zoneTop: ownLt.zoneTop, zoneBottom: ownLt.zoneBottom, invalidation: ownLt.invalidation, targets: ownLt.targets } : null);
+  const strength = plan && !heldPlan ? signalStrength(b?.res) : null;
   const riskPct = plan ? (Math.abs(plan.entry - plan.stop) / plan.entry) * 100 : 0;
   const myLong = trades.find((t) => t.status !== "closed" && (t.strategy === "longterm" || t.strategy === "core") && t.symbol === asset.symbol);
   const myTrade = trades.find((t) => t.status !== "closed" && t.symbol === asset.symbol && t.strategy !== "core");
@@ -129,7 +145,11 @@ export function AssetCard({
 
   // Alle Charts in Tageskerzen (Wellenpunkte aus Wochenkerzen auf die passende Tageskerze gelegt)
   const mv = entry ? miniView(entry, lt ? undefined : res?.elliott.best, lt ? entry.ltHorizon : b?.horizon ?? view.h, view.candles) : null;
-  const ltMini = mv?.longterm ?? null;
+  const ltMini = ownLt
+    ? { start: { time: 0, price: ownLt.invalidation }, high: { time: ownLt.highTime ?? Math.floor(heldBlue!.openedAt / 1000) - 60 * 86400, price: ownLt.targets[0] }, zoneTop: ownLt.zoneTop, zoneBottom: ownLt.zoneBottom, invalidation: ownLt.invalidation, target: ownLt.targets[0] }
+    : heldColor === "gruen"
+      ? null
+      : mv?.longterm ?? null;
   const wave = mv?.best;
 
   const myLine = (() => {
@@ -144,7 +164,7 @@ export function AssetCard({
   })();
 
   return (
-    <article className={`card space-y-3 p-4 ${b ? EDGE[b.color] : ""}`}>
+    <article className={`card space-y-3 p-4 ${show ? EDGE[show] : ""}`}>
       {/* Zeile 1 */}
       <div className="flex items-start justify-between gap-3">
         <button className="min-w-0 text-left" onClick={() => onOpen(openHorizon)}>
@@ -188,27 +208,27 @@ export function AssetCard({
                 <div className="num text-[13px] text-emerald-300/80">{isShort ? "−" : "+"}{pctStr(plan.entry, plan.targets[0])}</div>
               </div>
             </div>
-          ) : lt ? (
+          ) : ltGrid ? (
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-sky-500/10 px-1 py-2">
                 <div className="label">Einstieg (3 Teile)</div>
-                <div className="num text-[15px] font-semibold text-sky-200">{money(lt.zoneTop, cur)}</div>
-                <div className="num text-[13px] text-sky-200/80">bis {money(lt.zoneBottom, cur)}</div>
+                <div className="num text-[15px] font-semibold text-sky-200">{money(ltGrid.zoneTop, cur)}</div>
+                <div className="num text-[13px] text-sky-200/80">bis {money(ltGrid.zoneBottom, cur)}</div>
               </div>
               <div className="rounded-xl bg-white/5 px-1 py-2">
                 <div className="label">Ungültig unter</div>
-                <div className="num text-[15px] font-semibold text-red-300">{lt.invalidation > 0 ? money(lt.invalidation, cur) : "keiner"}</div>
+                <div className="num text-[15px] font-semibold text-red-300">{ltGrid.invalidation > 0 ? money(ltGrid.invalidation, cur) : "keiner"}</div>
                 <div className="text-[13px] text-stone-400">kein fester Stop</div>
               </div>
               <div className="rounded-xl bg-white/5 px-1 py-2">
                 <div className="label">Ziel</div>
-                <div className="num text-[15px] font-semibold text-emerald-300">{money(lt.targets[0], cur)}</div>
-                <div className="num text-[13px] text-emerald-300/80">dann {money(lt.targets[1], cur)}</div>
+                <div className="num text-[15px] font-semibold text-emerald-300">{money(ltGrid.targets[0], cur)}</div>
+                {ltGrid.targets[1] != null && <div className="num text-[13px] text-emerald-300/80">dann {money(ltGrid.targets[1], cur)}</div>}
               </div>
             </div>
           ) : null}
 
-          <NeutralGauge score={res?.total ?? entry?.best.res?.total} prefix={GAUGE_PREFIX[b.color]} />
+          <NeutralGauge score={res?.total ?? entry?.best.res?.total} prefix={GAUGE_PREFIX[show ?? b.color]} />
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
 
@@ -239,9 +259,9 @@ export function AssetCard({
                 <span className="num text-[15px] font-semibold text-stone-200">{strength != null ? strength.toFixed(0) : "–"}</span>
               </>
             ) : (
-              <span className="flex-1 text-[14px] text-stone-400">{lt ? (lastPrice != null && lastPrice <= lt.zoneTop ? "Kurs im Einstiegsbereich" : "Bereich zulaufend") : "Kein Einstieg"}</span>
+              <span className="flex-1 text-[14px] text-stone-400">{ownLt ? "Deine Langfrist-Position" : lt ? (lastPrice != null && lastPrice <= lt.zoneTop ? "Kurs im Einstiegsbereich" : "Bereich zulaufend") : "Kein Einstieg"}</span>
             )}
-            <span className={BADGE[b.color]}>{isNachkauf ? "Nachkauf" : COLOR_LABEL[b.color]}</span>
+            <span className={BADGE[show ?? b.color]}>{isNachkauf ? "Nachkauf" : COLOR_LABEL[show ?? b.color]}</span>
             {plan && riskPct > RISK_LIMIT && <span className="badge-risk">Hohes Risiko</span>}
           </div>
 
@@ -250,8 +270,8 @@ export function AssetCard({
               {isNachkauf && <p className="text-sky-200">Nachkauf möglich: neuer blauer Bereich zu deiner Position – {ADD.stake.toLocaleString("de-DE")} € (noch {nk!.left} von {ADD.max}).</p>}
               {myLine && <p className="text-sky-200">{myLine}</p>}
               {myTrade?.promotedAt && (
-                <p className="text-sky-200">
-                  Hochgestuft zu Blau am {new Date(myTrade.promotedAt).toLocaleDateString("de-DE")}: {myTrade.promoteReason}
+                <p className="text-emerald-200">
+                  Stop nachgezogen am {new Date(myTrade.promotedAt).toLocaleDateString("de-DE")}: {myTrade.promoteReason}
                 </p>
               )}
               {plan && riskPct > RISK_LIMIT && (
@@ -337,7 +357,7 @@ export function AssetCard({
               </p>
               {plan.orderType === "limit" && <p className="text-amber-300">Wartende Order: Der Trade startet erst, wenn der Kurs {money(plan.entry, cur)} erreicht.</p>}
               <OrderSlip kind={asset.kind} symbol={asset.symbol} name={asset.name} currency={cur} direction={plan.direction} entry={plan.entry} stop={plan.stop} targets={plan.targets} limit={plan.orderType === "limit"} />
-              <p className="text-[13px] text-stone-400">Einstieg, Stop und Ziele kommen unverändert von Blacktrader.{isShort ? "" : " Bestätigt der Wochenchart den Aufwärtstrend, wird der Trade zu Blau hochgestuft und der Stop nur nachgezogen."}</p>
+              <p className="text-[13px] text-stone-400">Einstieg, Stop und Ziele kommen unverändert von Blacktrader.{isShort ? "" : " Bestätigt der Wochenchart den Aufwärtstrend, wird der Stop nachgezogen (der Trade bleibt grün)."}</p>
             </div>
           ) : null
         }

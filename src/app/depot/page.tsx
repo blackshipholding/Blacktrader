@@ -50,9 +50,10 @@ function statusText(t: Trade) {
 function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; price?: number; onAction: (t: Trade) => void; onOpenAsset: (t: Trade) => void; nachkauf?: ReactNode }) {
   const [dx, setDx] = useState(0);
   const start = useRef<number | null>(null);
-  const isLt = t.strategy === "core" || t.strategy === "longterm" || !!t.promotedAt;
+  // Farbe folgt dem Kauf: blau gekauft bleibt blau, grün gekauft bleibt grün – auch nach dem Nachziehen des Stops
+  const isLt = t.strategy === "core" || t.strategy === "longterm";
   const edge = isLt ? "edge-core" : t.direction === "long" ? "edge-trade" : "edge-short";
-  const kind = t.nachkauf ? <span className="badge-core">Nachkauf (Blau)</span> : t.promotedAt ? <span className="badge-core">Blau (hochgestuft)</span> : t.strategy === "longterm" || t.strategy === "core" ? <span className="badge-core">Langfristig</span> : t.direction === "long" ? <span className="badge-trade">Trade</span> : <span className="badge-short">Short</span>;
+  const kind = t.nachkauf ? <span className="badge-core">Nachkauf (Blau)</span> : t.promotedAt ? <span className="badge-trade">Trade · Stop nachgezogen</span> : t.strategy === "longterm" || t.strategy === "core" ? <span className="badge-core">Langfristig</span> : t.direction === "long" ? <span className="badge-trade">Trade</span> : <span className="badge-short">Short</span>;
   const cur = t.status === "closed" ? t.exit : price ?? t.lastPrice;
   const ret = t.status === "closed" ? t.returnPct : t.status === "open" && cur ? tradeReturnEur(t, cur) : undefined;
   const st = statusText(t);
@@ -222,7 +223,7 @@ function BlacktraderDepot() {
   const [showOld, setShowOld] = useState(false);
   const notice = useAppData((d) => d.migrationNotice);
   const { live } = useMarket();
-  // Signalart statt Zeitraum: Blau (langfristig / hochgestuft) · Grün (Trade) · Rot (Short). Der Zeitraum steht nur noch als Info am Trade.
+  // Signalart statt Zeitraum: Blau (langfristig) · Grün (Trade, auch mit nachgezogenem Stop) · Rot (Short). Der Zeitraum steht nur noch als Info am Trade.
   const [art, setArt] = useState<"all" | "blau" | "gruen" | "rot">("all");
   const [action, setAction] = useState<Trade | null>(null);
   const [exitPrice, setExitPrice] = useState("");
@@ -255,7 +256,7 @@ function BlacktraderDepot() {
         .filter((t) => showOld || t.openedAt >= roundStart)
         .filter((t) => {
           if (art === "all") return true;
-          const blue = t.strategy === "core" || t.strategy === "longterm" || !!t.promotedAt;
+          const blue = t.strategy === "core" || t.strategy === "longterm";
           return art === "blau" ? blue : art === "gruen" ? !blue && t.direction === "long" : !blue && t.direction === "short";
         })
         .sort((a, b) => (a.status === "closed" ? 1 : 0) - (b.status === "closed" ? 1 : 0) || b.openedAt - a.openedAt),
@@ -388,7 +389,7 @@ function BlacktraderDepot() {
                   group={g}
                   price={live[instrumentKey(t)]?.price}
                   nachkauf={<NachkaufBox entry={scan.entries.find((e) => e.asset.kind === t.kind && e.asset.symbol === t.symbol)} />}
-                  onOpen={() => openSheet({ kind: t.kind, symbol: t.symbol, name: t.name, binanceSymbol: t.binanceSymbol, yahooSymbol: t.yahooSymbol, currency: t.currency }, "long", { withEntry: true })}
+                  onOpen={() => openSheet({ kind: t.kind, symbol: t.symbol, name: t.name, binanceSymbol: t.binanceSymbol, yahooSymbol: t.yahooSymbol, currency: t.currency }, "long", { withEntry: true, fromDepot: true })}
                   onAction={(x) => {
                     setAction(x);
                     setExitPrice(String(+((live[instrumentKey(x)]?.price ?? x.lastPrice ?? x.entry) * (eurPerUnit(tradeCurrency(x)) ?? 1)).toPrecision(6)));
@@ -402,7 +403,7 @@ function BlacktraderDepot() {
               key={t.id}
               t={t}
               price={live[instrumentKey(t)]?.price}
-              onOpenAsset={(x) => openSheet({ kind: x.kind, symbol: x.symbol, name: x.name, binanceSymbol: x.binanceSymbol, yahooSymbol: x.yahooSymbol, currency: x.currency }, x.strategy === "longterm" || x.strategy === "core" ? "long" : x.horizon, { withEntry: true })}
+              onOpenAsset={(x) => openSheet({ kind: x.kind, symbol: x.symbol, name: x.name, binanceSymbol: x.binanceSymbol, yahooSymbol: x.yahooSymbol, currency: x.currency }, x.strategy === "longterm" || x.strategy === "core" ? "long" : x.horizon, { withEntry: true, fromDepot: true })}
               onAction={(x) => {
                 setAction(x);
                 setExitPrice(String(+((live[instrumentKey(x)]?.price ?? x.lastPrice ?? x.entry) * (eurPerUnit(tradeCurrency(x)) ?? 1)).toPrecision(6)));

@@ -21,6 +21,17 @@ export interface MiniPast {
   to?: number;
   zoneTop?: number;
   zoneBottom?: number;
+  /** nur alte Einstiege aus dem Verlauf (erledigt/ungültig/abgelöst) – eigene ältere Käufe haben keinen */
+  status?: string;
+}
+
+/** Überlappen zwei Preisbereiche zu mindestens der Hälfte des kleineren? (dann ist es praktisch dieselbe Zone) */
+export function sameZone(a: [number, number], b: [number, number]): boolean {
+  const [a1, a2] = [Math.min(...a), Math.max(...a)];
+  const [b1, b2] = [Math.min(...b), Math.max(...b)];
+  const ov = Math.min(a2, b2) - Math.max(a1, b1);
+  const small = Math.min(a2 - a1, b2 - b1);
+  return ov > 0 && (small <= 0 || ov >= 0.5 * small);
 }
 
 /** Höchstens so viele Punkte im Kursverlauf (lange Zeiträume werden ausgedünnt – Hochs/Tiefs bleiben erhalten) */
@@ -54,7 +65,9 @@ export function MiniChart({ candles, plan, best, height = 92, showWaves = true, 
   if (plan) levels.push(plan.stop, plan.targets[0], plan.zoneStart ?? plan.entry, plan.zoneEnd ?? plan.entry);
   if (longterm) levels.push(longterm.invalidation, longterm.zoneBottom, longterm.target);
   const t00 = data[0].time;
-  const greys = past.filter((p) => p.zoneTop != null && p.zoneBottom != null && (p.to ?? Infinity) >= t00);
+  // Aktuelle Zone: alte, fast gleiche Einstiege aus dem Verlauf nicht grau hineinzeichnen (Schönheitsfehler, Nutzer 11.11.2026)
+  const curZone: [number, number] | null = plan ? [plan.zoneStart ?? plan.entry, plan.zoneEnd ?? plan.entry] : longterm ? [longterm.zoneTop, longterm.zoneBottom] : null;
+  const greys = past.filter((p) => p.zoneTop != null && p.zoneBottom != null && (p.to ?? Infinity) >= t00 && !(p.status && curZone && sameZone(curZone, [p.zoneTop, p.zoneBottom])));
   for (const g of greys) levels.push(g.zoneTop!, g.zoneBottom!);
   const lo = Math.min(...levels);
   const hi = Math.max(...levels);

@@ -122,13 +122,13 @@ export default function Uebersicht() {
             {openTrades.slice(0, 6).map((t) => {
               const p = live[instrumentKey(t)]?.price ?? t.lastPrice;
               const r = t.status === "open" && p ? tradeReturnEur(t, p) : null;
-              const edge = t.strategy === "core" || t.strategy === "longterm" || t.promotedAt ? "edge-core" : t.direction === "long" ? "edge-trade" : "edge-short";
+              const edge = t.strategy === "core" || t.strategy === "longterm" ? "edge-core" : t.direction === "long" ? "edge-trade" : "edge-short";
               return (
                 <div key={t.id} className={`flex min-h-[56px] items-center justify-between gap-3 rounded-none px-4 py-2.5 ${edge}`}>
                   <div className="min-w-0">
                     <div className="truncate text-[15px] font-medium text-stone-100">{t.name}</div>
                     <div className="text-[13px] text-stone-400">
-                      {t.promotedAt ? "Blau (hochgestuft)" : t.strategy === "longterm" || t.strategy === "core" ? "Langfristig" : t.direction === "long" ? "Trade" : "Short"} · {HORIZON_LABEL[t.horizon]} · {t.status === "pending" ? "wartet auf Einstieg" : "offen"}
+                      {t.promotedAt ? "Trade · Stop nachgezogen" : t.strategy === "longterm" || t.strategy === "core" ? "Langfristig" : t.direction === "long" ? "Trade" : "Short"} · {HORIZON_LABEL[t.horizon]} · {t.status === "pending" ? "wartet auf Einstieg" : "offen"}
                     </div>
                   </div>
                   <div className={`num text-[18px] font-semibold ${r == null ? "text-amber-300" : r >= 0 ? "text-up" : "text-down"}`}>{r == null ? "wartet" : signed(r)}</div>

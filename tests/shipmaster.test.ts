@@ -86,3 +86,12 @@ describe("Neue Gegner (TradingView-Bots, Stärkste aus dem Härtetest): kein Bli
     });
   }
 });
+
+describe("Update 11.11.2026 – Schönheitsfehler: fast gleiche Zone nicht grau in die aktuelle Box", () => {
+  it("sameZone erkennt praktisch dieselbe Zone, aber keine andere", async () => {
+    const { sameZone } = await import("../src/components/MiniChart");
+    expect(sameZone([100, 90], [99, 91])).toBe(true);
+    expect(sameZone([100, 90], [92, 70])).toBe(false);
+    expect(sameZone([100, 90], [80, 70])).toBe(false);
+  });
+});

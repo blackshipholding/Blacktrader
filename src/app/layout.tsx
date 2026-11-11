@@ -7,13 +7,13 @@ import { MarketProvider } from "@/lib/client/market";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Black Ship Holding – Blacktrader",
+  title: "Blacktrader",
   description: "Elliott-Wellen-, Fundamental- und Volumenanalyse mit Watchlist, Echtzeit-Signalen und Depot.",
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/favicon.png", type: "image/png" }], apple: "/icon-180.png" },
   appleWebApp: {
     capable: true,
-    title: "Black Ship",
+    title: "Blacktrader",
     statusBarStyle: "black-translucent",
     startupImage: [{ url: "/splash-1170x2532.png", media: "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" }],
   },

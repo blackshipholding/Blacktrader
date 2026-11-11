@@ -23,7 +23,7 @@ export function applyPromotions(entries: ScanEntry[]) {
     if (!p) continue;
     if (!t.promotedAt) {
       actions.updateTrade(t.id, { promotedAt: Date.now(), promoteReason: p.reason, stop: p.stop, targets: p.targets, initialStop: t.initialStop ?? t.stop });
-      notify(`Hochgestuft zu Blau: ${t.symbol}`, `${p.reason} Stop jetzt ${money(p.stop, tradeCurrency(t))}.`, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
+      notify(`Stop nachgezogen: ${t.symbol}`, `${p.reason} Stop jetzt ${money(p.stop, tradeCurrency(t))}.`, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
     } else if (p.stop > t.stop) {
       actions.updateTrade(t.id, { stop: p.stop });
       notify(`Stop nachgezogen: ${t.symbol}`, `Neues Korrekturtief bestätigt – Stop auf ${money(p.stop, tradeCurrency(t))} angehoben.`, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
