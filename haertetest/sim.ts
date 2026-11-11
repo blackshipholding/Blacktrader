@@ -67,6 +67,7 @@ interface Tr {
   x: number; // Kalenderindex Ausstieg (> Datenende = offen)
   pe: number; // Einstiegskurs
   px: number; // Ausstiegskurs
+  zt?: number; // Oberkante der blauen Zone
   short?: boolean;
   blue?: boolean;
   pos?: number; // gemeinsame Position (neues Blau: Erstkauf + Nachkäufe)
@@ -109,7 +110,7 @@ for (const f of readdirSync(`${DIR}/sig`)) {
   for (const t of d.oldBlue) {
     const e = atOrAfter(t.e);
     if (e >= N) continue;
-    const tr: Tr = { s, e, x: t.open ? N + 1 : atOrAfter(t.x), pe: t.px, px: t.px * (1 + t.r / 100), blue: true, color: "blau", risk: t.risk, chance: t.chance };
+    const tr: Tr = { s, e, x: t.open ? N + 1 : atOrAfter(t.x), pe: t.px, px: t.px * (1 + t.r / 100), blue: true, color: "blau", risk: t.risk, chance: t.chance, zt: t.zt };
     btOldNoRule.push(tr);
     if (t.ok) btOld.push({ ...tr });
     // C: Blau nur, wenn kein aktiver grüner Kauf-Bereich darunter liegt (Blau-Oberkante unter der grünen Unterkante)
@@ -339,6 +340,29 @@ ship("S6", "S6: nur Chance/Risiko ab 2", btOldNoRule.filter((t) => !(crv(t) < 2)
 ship("S7", "S7: höchstens 3 Positionen je Branche", btOldNoRule, { sectorMax: 3 });
 ship("S8", "S8: Zinseszins (10 % vom aktuellen Kontostand)", btOldNoRule, { equity: true });
 ship("S9", "S9: ohne Shorts + Zinseszins (S1 + S8)", btOldNoRule.filter((t) => !t.short), { equity: true });
+// Gewinn-Schutz Blau (Nutzer-Frage 11.11.2026): Kurs über der Oberkante und mind. +gain über Ø Einstieg → Stop
+// (ab dem nächsten Tag) auf die Oberkante (lvl "top") bzw. den Ø Einstieg (lvl "avg"); nur Schlusskurse vorhanden →
+// Stop greift beim ersten Schlusskurs auf/unter der Stop-Linie, Verkauf zu diesem Schlusskurs.
+function trail(t: Tr, gain: number, lvl: "top" | "avg"): Tr {
+  if (!t.blue || t.zt == null) return t;
+  const stop = lvl === "top" ? t.zt : t.pe;
+  const a = close[t.s];
+  let on = false;
+  const last = Math.min(t.x, END + 1);
+  for (let i = t.e + 1; i < last; i++) {
+    const c = a[i];
+    if (c !== c) continue;
+    if (on && c <= stop) return { ...t, x: i, px: c };
+    if (!on && c >= t.pe * (1 + gain) && c > t.zt) on = true;
+  }
+  return t;
+}
+const s9base = btOldNoRule.filter((t) => !t.short);
+const trailed = (g: number, l: "top" | "avg") => s9base.map((t) => trail(t, g, l)).sort((a, b) => a.e - b.e);
+ship("S15", "S15: S9 + Stop auf Oberkante ab +20 %", trailed(0.2, "top"), { equity: true });
+ship("S16", "S16: S9 + Stop auf Oberkante ab +10 %", trailed(0.1, "top"), { equity: true });
+ship("S17", "S17: S9 + Stop auf Oberkante ab +30 %", trailed(0.3, "top"), { equity: true });
+ship("S18", "S18: S9 + Stop auf Ø Einstieg ab +20 %", trailed(0.2, "avg"), { equity: true });
 // Momentum und RSI zusätzlich (nur Daten bis zum Vortag des Kaufs)
 const rsi14 = C.map((a) => rsi(a, 14));
 const rsiOk = (t: Tr) => { const v = rsi14[t.s]?.[t.e - 1]; return !(v > 70); };
