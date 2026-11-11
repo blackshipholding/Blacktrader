@@ -144,7 +144,7 @@ export default function EchoChartPage() {
   const single = results && results.length === 1 ? results[0] : null;
   const tradesAll = results?.reduce((s, r) => s + r.trades, 0) ?? 0;
   const tradeHit = results && tradesAll ? results.reduce((s, r) => s + (r.tradeHit ?? 0) * r.trades, 0) / tradesAll : null;
-  // Konto wie im Depot: 8.000 € Start, 500 € je Trade, Gebühren und KESt – Ergebnis netto
+  // Konto wie im Depot (Shipmaster 0.1): 10 % vom Kontostand je Kauf, keine Shorts, Gebühren und KESt – netto
   const acc = results && tradesAll ? simulateAccount(results.flatMap((r) => r.sim)) : null;
 
   return (
@@ -239,7 +239,7 @@ export default function EchoChartPage() {
           {single && single.candles.length > 0 && <ZoneHistoryChart candles={single.candles} zones={single.zones} />}
           {tradeHit != null && (
             <p className="text-center text-[13px] text-stone-400">
-              Trades nach allen Regeln (Grün, Rot, Blau): {pct(tradeHit)} im Gewinn{single?.tradeReturn != null ? ` · Ergebnis ${single.tradeReturn >= 0 ? "+" : ""}${single.tradeReturn.toFixed(1).replace(".", ",")} %` : ""}
+              Trades nach Shipmaster 0.1 (Grün, Blau – keine Shorts): {pct(tradeHit)} im Gewinn{single?.tradeReturn != null ? ` · Ergebnis ${single.tradeReturn >= 0 ? "+" : ""}${single.tradeReturn.toFixed(1).replace(".", ",")} %` : ""}
             </p>
           )}
 
