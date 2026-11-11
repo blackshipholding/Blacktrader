@@ -1,0 +1,573 @@
+{
+ "walk1": {
+  "analyses": [
+   {
+    "total": 43.6,
+    "elliott": 41,
+    "fundamental": 67,
+    "volume": 28,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 93.458445,
+     "s": 103.482452,
+     "t": [
+      70.663605,
+      52.017937
+     ],
+     "rr": 2.27,
+     "o": "limit"
+    },
+    "best": "flat-expanded:ABC:0.431391",
+    "counts": 6,
+    "legacyLevel": "neutral",
+    "legacyPlan": null
+   },
+   {
+    "total": 51,
+    "elliott": 43,
+    "fundamental": 67,
+    "volume": 59,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 83.750392,
+     "s": 86.176739,
+     "t": [
+      78.631529,
+      74.444414
+     ],
+     "rr": 2.11,
+     "o": "limit"
+    },
+    "best": "triangle-contracting:ABCDE:0.500383",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     82.44078,
+     84.27488,
+     76.361084
+    ]
+   },
+   {
+    "total": 53.6,
+    "elliott": 56,
+    "fundamental": 67,
+    "volume": 33,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 72.710879,
+     "s": 75.840825,
+     "t": [
+      65.842785,
+      60.224839
+     ],
+     "rr": 2.19,
+     "o": "limit"
+    },
+    "best": "impulse:123:0.486127",
+    "counts": 7,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     68.638983,
+     67.182446,
+     69.763001
+    ]
+   },
+   {
+    "total": 44,
+    "elliott": 27,
+    "fundamental": 67,
+    "volume": 72,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 72.012145,
+     "s": 65.020488,
+     "t": [
+      87.830124,
+      100.768876
+     ],
+     "rr": 2.26,
+     "o": "limit"
+    },
+    "best": "impulse:12:0.503984",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     79.527063,
+     81.978662,
+     77.17276
+    ]
+   }
+  ],
+  "zone": {
+   "n": 2,
+   "ret": 11.147498,
+   "win": 0.5
+  },
+  "legacy": {
+   "n": 0,
+   "ret": 0
+  }
+ },
+ "walk2": {
+  "analyses": [
+   {
+    "total": 61,
+    "elliott": 57,
+    "fundamental": 67,
+    "volume": 67,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 52.010309,
+     "s": 48.732302,
+     "t": [
+      59.215583,
+      65.109335
+     ],
+     "rr": 2.2,
+     "o": "limit"
+    },
+    "best": "flat-running:ABC:0.39311",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     55.840146,
+     54.356896,
+     57.801054
+    ]
+   },
+   {
+    "total": 46.8,
+    "elliott": 29,
+    "fundamental": 67,
+    "volume": 80,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 63.305436,
+     "s": 60.120097,
+     "t": [
+      70.177398,
+      75.798508
+     ],
+     "rr": 2.16,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.61112",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     67.798591,
+     69.685,
+     63.305436
+    ]
+   },
+   {
+    "total": 55.6,
+    "elliott": 63,
+    "fundamental": 67,
+    "volume": 22,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 62.715583,
+     "s": 65.868307,
+     "t": [
+      55.853502,
+      50.240474
+     ],
+     "rr": 2.18,
+     "o": "limit"
+    },
+    "best": "impulse:12345:0.482616",
+    "counts": 6,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     58.602725,
+     56.94332,
+     60.895975
+    ]
+   },
+   {
+    "total": 46.8,
+    "elliott": 33,
+    "fundamental": 67,
+    "volume": 68,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 73.616495,
+     "s": 71.548662,
+     "t": [
+      77.884557,
+      81.375736
+     ],
+     "rr": 2.06,
+     "o": "limit"
+    },
+    "best": "impulse:12345:0.529333",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     75.531761,
+     77.523856,
+     71.784585
+    ]
+   }
+  ],
+  "zone": {
+   "n": 2,
+   "ret": -15.735939,
+   "win": 0
+  },
+  "legacy": {
+   "n": 1,
+   "ret": -2.857493
+  }
+ },
+ "walk3": {
+  "analyses": [
+   {
+    "total": 61.6,
+    "elliott": 57,
+    "fundamental": 67,
+    "volume": 70,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 2136.406243,
+     "s": 2203.792269,
+     "t": [
+      1989.75352,
+      1869.794888
+     ],
+     "rr": 2.18,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.400735",
+    "counts": 6,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     2042.100306,
+     2006.57471,
+     2136.406243
+    ]
+   },
+   {
+    "total": 61.4,
+    "elliott": 72,
+    "fundamental": 67,
+    "volume": 24,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 2020.736706,
+     "s": 2203.532996,
+     "t": [
+      1604.59213,
+      1264.195218
+     ],
+     "rr": 2.28,
+     "o": "limit"
+    },
+    "best": "impulse:12:0.498528",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     1781.002987,
+     1731.773394,
+     1841.811118
+    ]
+   },
+   {
+    "total": 53.4,
+    "elliott": 46,
+    "fundamental": 67,
+    "volume": 62,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 2040.670101,
+     "s": 1726.624069,
+     "t": [
+      2760.350913,
+      3349.033644
+     ],
+     "rr": 2.29,
+     "o": "limit"
+    },
+    "best": "impulse:123:0.417661",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     2524.427906,
+     2565.622506,
+     2356.76778
+    ]
+   },
+   {
+    "total": 56.6,
+    "elliott": 58,
+    "fundamental": 67,
+    "volume": 42,
+    "level": "neutral",
+    "plan": null,
+    "best": "zigzag:ABC:0.424735",
+    "counts": 5,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     2755.545771,
+     2699.763518,
+     2931.753
+    ]
+   }
+  ],
+  "zone": {
+   "n": 3,
+   "ret": -13.614678,
+   "win": 0
+  },
+  "legacy": {
+   "n": 3,
+   "ret": -5.349278
+  }
+ },
+ "waves": {
+  "analyses": [
+   {
+    "total": 53.8,
+    "elliott": 53,
+    "fundamental": 67,
+    "volume": 43,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 250.619403,
+     "s": 218.705852,
+     "t": [
+      322.977465,
+      382.164734
+     ],
+     "rr": 2.27,
+     "o": "limit"
+    },
+    "best": "flat-running:ABC:0.369025",
+    "counts": 8,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     276.666667,
+     265.820366,
+     282.737799
+    ]
+   },
+   {
+    "total": 61.4,
+    "elliott": 56,
+    "fundamental": 67,
+    "volume": 72,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 259.13521,
+     "s": 238.712697,
+     "t": [
+      304.47956,
+      341.57022
+     ],
+     "rr": 2.22,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.39394",
+    "counts": 4,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     290,
+     235.832378,
+     295.612399
+    ]
+   },
+   {
+    "total": 61.4,
+    "elliott": 56,
+    "fundamental": 67,
+    "volume": 72,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 259.13521,
+     "s": 238.712697,
+     "t": [
+      304.47956,
+      341.57022
+     ],
+     "rr": 2.22,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.39394",
+    "counts": 4,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     290,
+     235.832378,
+     295.612399
+    ]
+   },
+   {
+    "total": 61.4,
+    "elliott": 56,
+    "fundamental": 67,
+    "volume": 72,
+    "level": "buy",
+    "plan": {
+     "d": "long",
+     "e": 259.13521,
+     "s": 238.712697,
+     "t": [
+      304.47956,
+      341.57022
+     ],
+     "rr": 2.22,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.39394",
+    "counts": 4,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     290,
+     235.832378,
+     295.612399
+    ]
+   }
+  ],
+  "zone": {
+   "n": 1,
+   "ret": -8.312127,
+   "win": 0
+  },
+  "legacy": {
+   "n": 2,
+   "ret": -5.727063
+  }
+ },
+ "down": {
+  "analyses": [
+   {
+    "total": 57.4,
+    "elliott": 52,
+    "fundamental": 67,
+    "volume": 64,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 151.097475,
+     "s": 171.017462,
+     "t": [
+      105.764411,
+      68.682983
+     ],
+     "rr": 2.28,
+     "o": "limit"
+    },
+    "best": "zigzag:ABC:0.347477",
+    "counts": 6,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     140,
+     117.769312,
+     169.697636
+    ]
+   },
+   {
+    "total": 59.6,
+    "elliott": 52,
+    "fundamental": 67,
+    "volume": 75,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 130,
+     "s": 140.653117,
+     "t": [
+      88.956421,
+      64.908896
+     ],
+     "rr": 3.85,
+     "o": "market"
+    },
+    "best": "impulse:12345:0.357485",
+    "counts": 7,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     130,
+     97.799004,
+     138.386674
+    ]
+   },
+   {
+    "total": 59.6,
+    "elliott": 52,
+    "fundamental": 67,
+    "volume": 75,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 130,
+     "s": 140.653117,
+     "t": [
+      88.956421,
+      64.908896
+     ],
+     "rr": 3.85,
+     "o": "market"
+    },
+    "best": "impulse:12345:0.357485",
+    "counts": 7,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     130,
+     97.799004,
+     138.386674
+    ]
+   },
+   {
+    "total": 59.6,
+    "elliott": 52,
+    "fundamental": 67,
+    "volume": 75,
+    "level": "sell",
+    "plan": {
+     "d": "short",
+     "e": 130,
+     "s": 140.653117,
+     "t": [
+      88.956421,
+      64.908896
+     ],
+     "rr": 3.85,
+     "o": "market"
+    },
+    "best": "impulse:12345:0.357485",
+    "counts": 7,
+    "legacyLevel": "neutral",
+    "legacyPlan": [
+     130,
+     97.799004,
+     138.386674
+    ]
+   }
+  ],
+  "zone": {
+   "n": 1,
+   "ret": -4.199604,
+   "win": 0
+  },
+  "legacy": {
+   "n": 0,
+   "ret": 0
+  }
+ }
+}
