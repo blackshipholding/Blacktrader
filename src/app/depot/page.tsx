@@ -356,7 +356,10 @@ function BlacktraderDepot() {
             ["gruen", "Grün"],
             ["rot", "Rot"],
           ] as const
-        ).map(([k, l]) => (
+        )
+          // Shipmaster: keine Shorts – „Rot“ nur, solange noch ein alter Short offen ist
+          .filter(([k]) => k !== "rot" || trades.some((t) => t.direction === "short" && t.status !== "closed"))
+          .map(([k, l]) => (
           <button key={k} onClick={() => setArt(k)} className={`chip shrink-0 ${art === k ? "border-gold bg-white/10 font-semibold text-gold-light" : "border-white/10 text-stone-400"}`}>
             {l}
           </button>

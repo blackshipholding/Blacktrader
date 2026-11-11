@@ -151,7 +151,6 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
             </div>
           );
         })}
-      {showBuys && group.length > 0 && <p className="mt-1 text-right text-[12px] text-stone-500">Antippen: verkaufen, Stop, korrigieren</p>}
       {s.reserved > 0 && (
         <div className="num mt-2 flex justify-between rounded-xl bg-white/5 px-2.5 py-2 text-[14px] text-stone-300">
           <span>Wartende Order (reserviert)</span>

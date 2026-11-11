@@ -92,12 +92,14 @@ const btNew: Tr[] = [];
 const btNewNoRule: Tr[] = [];
 let posId = 0;
 const blueStats: { held: number; days: number; legs: number; why: string; ret: number }[] = [];
-for (const f of readdirSync(`${DIR}/sig`)) {
-  const d = JSON.parse(readFileSync(`${DIR}/sig/${f}`, "utf8"));
+const SIG = process.env.SIG ?? "sig";
+for (const f of readdirSync(`${DIR}/${SIG}`)) {
+  const d = JSON.parse(readFileSync(`${DIR}/${SIG}/${f}`, "utf8"));
   const s = SYMS.indexOf(d.sym);
   if (s < 0 || d.err) continue;
   const iv = (a: number[][]) => a.map(([x, y]) => [x, y]);
-  const oldActive: ActiveIntervals = { blau: d.oldBlue.map((t: { e: number; x: number }) => [t.e, t.x]), "1d": iv(d.z1d), "1w": iv(d.z1w) };
+  const suppBlue = process.env.SUPPSIG ? JSON.parse(readFileSync(`${DIR}/${process.env.SUPPSIG}/${f}`, "utf8")).oldBlue : d.oldBlue;
+  const oldActive: ActiveIntervals = { blau: suppBlue.map((t: { e: number; x: number }) => [t.e, t.x]), "1d": iv(d.z1d), "1w": iv(d.z1w) };
   const newActiveAll: ActiveIntervals = { blau: d.newBlue.map((p: { legs: { t: number }[]; exit: { t: number } | null }) => [p.legs[0].t, p.exit ? p.exit.t : 4e9]), "1d": iv(d.z1d), "1w": iv(d.z1w) };
   const newActive: ActiveIntervals = { ...newActiveAll, blau: d.newBlue.filter((p: { rule: boolean }) => p.rule).map((p: { legs: { t: number }[]; exit: { t: number } | null }) => [p.legs[0].t, p.exit ? p.exit.t : 4e9]) };
   const gr = (active: ActiveIntervals, out: Tr[]) => {
@@ -640,7 +642,7 @@ const out: Record<string, { end: Float64Array; broke: Uint8Array; fees: Float64A
 const t0 = Date.now();
 const PART = process.env.PART?.split("/").map(Number);
 const AGG = !!process.env.AGG;
-const tag = QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f";
+const tag = (process.env.SIG ? process.env.SIG + "_" : "") + (process.env.SUPPSIG ? "supp" + process.env.SUPPSIG + "_" : "") + (QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f");
 const dropped = (sym: string, seed: number) => { let h = 2166136261 ^ seed; for (let i = 0; i < sym.length; i++) h = Math.imul(h ^ sym.charCodeAt(i), 16777619); return ((h >>> 0) % 100) < 20; };
 for (const [si, st] of strategies.entries()) {
   if (AGG) {

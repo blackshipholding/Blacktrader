@@ -1,6 +1,7 @@
 "use client";
 // Analyse-Karte (Chancen, Watchlist): GENAU EIN aktueller Einstieg pro Wert – Blacktrader rechnet im Hintergrund.
-// Zeile 1 Name/Kurs · Zeile 2 Mini-Chart (alte Einstiege grau) · Zeile 3 Einstieg/Stop/Ziel · Grund · Verlauf · max. 2 Buttons.
+// Steht nur in der Detailansicht (AssetSheet): Zeile 1 Kürzel/Kurs (Name im Fenstertitel) · Mini-Chart · Einstieg/Stop/Ziel ·
+// Balken · Verlauf · max. 2 Buttons. KEIN Text-Kasten mehr (Satz/Begründung/Betrag – Nutzer 11.11.2026, die Beschreibung steht darunter).
 import { nachkaufState, openPositions } from "@/lib/client/nachkauf";
 import { OrderSlip } from "./OrderSlip";
 import { displayCurrency } from "@/lib/client/eur";
@@ -21,9 +22,8 @@ import { waveCaption } from "./waveText";
 import { ConfirmSheet } from "./Sheet";
 import { MarketNote } from "./DepotPicker";
 import { StatusPill } from "./StatusPill";
-import { ACCOUNT, ADD, belowMinCapital } from "@/lib/client/account";
+import { ADD } from "@/lib/client/account";
 import { GAUGE_PREFIX, NeutralGauge } from "./NeutralGauge";
-import { entryStatus, StatusLine } from "./StatusLine";
 
 const RISK_LIMIT = 15; // % Abstand Einstieg–Stop, ab dem "Hohes Risiko" angezeigt wird
 
@@ -131,8 +131,6 @@ export function AssetCard({
   const mv = entry ? miniView(entry, lt ? undefined : res?.elliott.best, lt ? entry.ltHorizon : b?.horizon ?? view.h, view.candles) : null;
   const ltMini = mv?.longterm ?? null;
   const wave = mv?.best;
-  // Shipmaster 0.1: empfohlener Betrag (1. Kauf 10 %, bei bestehender blauer Position Nachkauf 2 % vom Kontostand)
-  const shipAmount = belowMinCapital() || b?.color === "rot" || b?.color === "gelb" ? undefined : b?.color === "blau" && held ? ADD.stake : ACCOUNT.stake;
 
   const myLine = (() => {
     if (!myLong) return null;
@@ -150,8 +148,8 @@ export function AssetCard({
       {/* Zeile 1 */}
       <div className="flex items-start justify-between gap-3">
         <button className="min-w-0 text-left" onClick={() => onOpen(openHorizon)}>
-          <div className="truncate text-[17px] font-semibold text-stone-50">{asset.name}</div>
-          <div className="text-[13px] text-stone-400">{asset.symbol}</div>
+          {/* Name steht schon im Fenstertitel der Detailansicht – hier nur das Kürzel (für die Suche bei flatex) */}
+          <div className="text-[15px] text-stone-300">{asset.symbol}</div>
         </button>
         <div className="text-right">
           <div className="value">{lastPrice != null ? money(lastPrice, cur) : "–"}</div>
@@ -208,21 +206,11 @@ export function AssetCard({
                 <div className="num text-[13px] text-emerald-300/80">dann {money(lt.targets[1], cur)}</div>
               </div>
             </div>
-          ) : (
-            <StatusLine s={entryStatus(b, wave, cur, shipAmount)}>
-              <span className="mt-1 block text-[14px]">{b.waitFor ?? b.reason}</span>
-            </StatusLine>
-          )}
+          ) : null}
 
           <NeutralGauge score={res?.total ?? entry?.best.res?.total} prefix={GAUGE_PREFIX[b.color]} />
 
           {weak && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-[14px] text-red-200">{entry?.financeReason} Kein Einstieg – kann pleitegehen.</p>}
-          {(b.color === "gruen" || b.color === "rot") && (
-            <StatusLine s={entryStatus(b, wave, cur, shipAmount)}>
-              <span className="mt-1 block text-[14px] opacity-90">{b.reason}</span>
-            </StatusLine>
-          )}
-          {b.color === "blau" && <StatusLine s={entryStatus(b, wave, cur, shipAmount)} />}
 
           {expert && res && (
             <div className="rounded-xl border border-gold/20 bg-black/30 px-3 py-2 text-[13px] text-stone-300">
@@ -393,7 +381,7 @@ export function AssetCard({
             <div className="space-y-2">
               <p>{asset.name}: Nachkauf zu deiner Position im neuen blauen Bereich – eine Order zu {ADD.stake.toLocaleString("de-DE")} € an der Oberkante ({nk.left} von {ADD.max} Nachkäufen noch möglich).</p>
               <MarketNote price={lastPrice} top={lt.zoneTop} cur={cur} />
-              <OrderSlip kind={asset.kind} symbol={asset.symbol} name={asset.name} currency={cur} direction="long" entry={lt.zoneTop} tranches={effectiveLevels([lt.zoneTop], lastPrice ?? 0)} invalidation={lt.invalidation} targets={[...lt.targets]} budget={250} />
+              <OrderSlip kind={asset.kind} symbol={asset.symbol} name={asset.name} currency={cur} direction="long" entry={lt.zoneTop} tranches={effectiveLevels([lt.zoneTop], lastPrice ?? 0)} invalidation={lt.invalidation} targets={[...lt.targets]} budget={ADD.stake} />
             </div>
           ) : null
         }

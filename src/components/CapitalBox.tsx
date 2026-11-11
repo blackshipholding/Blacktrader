@@ -31,11 +31,8 @@ export function CapitalBox({ capital, accountValue }: { capital: number; account
           </button>
         </div>
       </label>
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-white/5 p-2">
-          <div className="text-[12px] text-stone-400">Kontostand</div>
-          <div className="num text-[16px] text-gold-light">{eurInt(base)}</div>
-        </div>
+      {/* Nur die Beträge nach Shipmaster – der Kontostand steht groß darunter (Nutzer 11.11.2026) */}
+      <div className="grid grid-cols-2 gap-2 text-center">
         <div className="rounded-xl bg-white/5 p-2">
           <div className="text-[12px] text-stone-400">1. Kauf (10 %)</div>
           <div className="num text-[16px] text-gold-light">{low ? "–" : eurInt(stakeFor(base))}</div>

@@ -46,7 +46,7 @@ export function NachkaufBox({ entry }: { entry: ScanEntry | undefined }) {
         text={
           <div className="space-y-3">
             <MarketNote price={entry.ltCandles?.at(-1)?.close} top={lt.zoneTop} cur={cur} />
-            <OrderSlip kind={a.kind} symbol={a.symbol} name={a.name} currency={cur} direction="long" entry={lt.zoneTop} tranches={effectiveLevels([lt.zoneTop], entry.ltCandles?.at(-1)?.close ?? 0)} invalidation={lt.invalidation} targets={[...lt.targets]} budget={250} />
+            <OrderSlip kind={a.kind} symbol={a.symbol} name={a.name} currency={cur} direction="long" entry={lt.zoneTop} tranches={effectiveLevels([lt.zoneTop], entry.ltCandles?.at(-1)?.close ?? 0)} invalidation={lt.invalidation} targets={[...lt.targets]} budget={ADD.stake} />
           </div>
         }
       />
