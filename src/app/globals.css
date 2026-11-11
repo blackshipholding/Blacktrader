@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gold: #c9a24a;
+  --color-gold-light: #e3c57a;
+  --color-gold-dark: #8f7232;
+  --color-wine: #7a1420;
+  --color-wine-light: #a32234;
+  --color-ink: #050505;
+  /* Wappen-Farben */
+  --color-crest-red: #560810;
+  --color-crest-gold: #b08a4f;
+  --color-up: #34d399;
+  --color-down: #f87171;
+  --color-core: #38bdf8;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.875rem;
+  --font-display: "Cinzel", "Times New Roman", serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --header-h: 56px;
+  --nav-h: 64px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  background: #000;
+}
+
+html,
+body {
+  color: #e9e4d8;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+/* Wappen als fixierter Hintergrund der gesamten App */
+body {
+  background: transparent;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #000;
+  background-image: url("/background.jpg");
+  background-image: image-set(url("/background.webp") type("image/webp"), url("/background.jpg") type("image/jpeg"));
+  background-position: center center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.num,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer components {
+  /* Glas-Karte */
+  .card {
+    @apply rounded-2xl border border-[rgba(176,138,79,0.28)] shadow-[0_8px_30px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(201,162,74,0.14)] backdrop-blur-[3px];
+    background: linear-gradient(160deg, rgba(70, 8, 14, 0.66) 0%, rgba(18, 5, 7, 0.76) 45%, rgba(4, 4, 4, 0.8) 100%);
+  }
+  .panel {
+    @apply rounded-2xl border border-[rgba(176,138,79,0.28)] shadow-[0_8px_30px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(201,162,74,0.14)] backdrop-blur-[3px];
+    background: linear-gradient(160deg, rgba(70, 8, 14, 0.66) 0%, rgba(18, 5, 7, 0.76) 45%, rgba(4, 4, 4, 0.8) 100%);
+  }
+  .panel-title {
+    @apply font-display text-[15px] font-semibold text-gold-light;
+  }
+  /* Signalfarbe als Rand links */
+  .edge-trade {
+    @apply border-l-4 border-l-emerald-400;
+  }
+  .edge-short {
+    @apply border-l-4 border-l-red-400;
+  }
+  .edge-core {
+    @apply border-l-4 border-l-sky-400;
+  }
+  .edge-wait {
+    @apply border-l-4 border-l-amber-400;
+  }
+  .badge {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium;
+  }
+  .badge-trade {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40;
+  }
+  .badge-short {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-red-500/15 text-red-300 ring-1 ring-red-400/40;
+  }
+  .badge-core {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/40;
+  }
+  .badge-wait {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/40;
+  }
+  .badge-muted {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-white/5 text-stone-300 ring-1 ring-white/10;
+  }
+  .badge-risk {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-red-500/20 text-red-200 ring-1 ring-red-400/60;
+  }
+  /* Ältere Klassen (Kompatibilität) */
+  .core-tag {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/40;
+  }
+  .trade-tag {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40;
+  }
+  .sell-tag {
+    @apply inline-flex min-h-[26px] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium bg-red-500/15 text-red-300 ring-1 ring-red-400/40;
+  }
+  .core-bg {
+    @apply border-l-4 border-l-sky-400;
+  }
+  .trade-bg {
+    @apply border-l-4 border-l-emerald-400;
+  }
+  .sell-bg {
+    @apply border-l-4 border-l-red-400;
+  }
+  .core-row {
+    @apply shadow-[inset_4px_0_0_rgb(56,189,248)];
+  }
+  .trade-row {
+    @apply shadow-[inset_4px_0_0_rgb(52,211,153)];
+  }
+  .sell-row {
+    @apply shadow-[inset_4px_0_0_rgb(248,113,113)];
+  }
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[rgba(176,138,79,0.35)] bg-[rgba(86,8,16,0.35)] px-4 text-[15px] text-stone-100 transition active:scale-[0.98] hover:bg-[rgba(86,8,16,0.55)] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gold px-4 text-[15px] font-semibold text-black transition active:scale-[0.98] hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-danger {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-400/50 bg-red-500/10 px-4 text-[15px] text-red-200 transition active:scale-[0.98];
+  }
+  .input {
+    @apply min-h-[48px] w-full rounded-xl border border-[rgba(176,138,79,0.3)] bg-black/60 px-4 text-[16px] text-stone-100 placeholder:text-stone-500 focus:border-gold focus:outline-none;
+  }
+  .chip {
+    @apply inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border px-3.5 text-[14px] transition;
+  }
+  .seg {
+    @apply inline-flex rounded-xl border border-[rgba(176,138,79,0.25)] bg-[rgba(40,6,10,0.55)] p-1;
+  }
+  .seg > button {
+    @apply min-h-[44px] rounded-lg px-2 text-[14px] text-stone-300 transition;
+  }
+  .seg > button[aria-pressed="true"] {
+    @apply bg-gold font-semibold text-black;
+  }
+  .label {
+    @apply text-[13px] text-stone-400;
+  }
+  .value {
+    @apply tabular-nums text-[18px] font-semibold text-stone-50;
+  }
+}
+
+/* Querformat: Charts in voller Breite */
+@media (orientation: landscape) and (max-height: 500px) {
+  .chart-wrap {
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+  .ls-hide {
+    display: none !important;
+  }
+  .ls-row {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+  }
+  .ls-row > * {
+    margin-top: 0 !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 162, 74, 0.3);
+  border-radius: 3px;
+}
