@@ -10,7 +10,10 @@ import { KestYear } from "/home/user/Blacktrader/src/lib/analysis/kest";
 import { suppressedBy, type ActiveIntervals } from "/home/user/Blacktrader/src/lib/analysis/tradeRules";
 
 const DIR = "/tmp/claude-0/-home-user-Blacktrader/4a846118-24a7-55aa-85de-daff0330394a/scratchpad/ht";
-const FEE = 7.9;
+// Gegenproben (11.11.2026): STRESS=1 doppelte Gebühren + 0,5 % schlechtere Kurse; DROP=n ohne zufällige 20 % der Werte
+const STRESS = !!process.env.STRESS;
+const DROP = Number(process.env.DROP ?? 0);
+const FEE = STRESS ? 2 * 7.9 : 7.9;
 const TAX = 0.275;
 const DAY = 86400;
 const utc = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 1000;
@@ -426,8 +429,9 @@ const yearOf = (i: number) => new Date(cal[Math.min(i, END)] * 1000).getUTCFullY
 interface Res { end: number; broke: boolean; fees: number; tax: number; n: number; low: number }
 
 function exitValue(t: Tr, w1: number): { at: number; px: number } {
-  if (t.x <= w1 && t.px === t.px) return { at: t.x, px: t.px };
-  return { at: w1, px: priceIdx(t.s, w1) };
+  const sl = STRESS ? (t.short ? 1.005 : 0.995) : 1;
+  if (t.x <= w1 && t.px === t.px) return { at: t.x, px: t.px * sl };
+  return { at: w1, px: priceIdx(t.s, w1) * sl };
 }
 function gain(t: Tr, stake: number, px: number) {
   const r = t.short ? 1 - px / t.pe : px / t.pe - 1;
@@ -614,7 +618,8 @@ const out: Record<string, { end: Float64Array; broke: Uint8Array; fees: Float64A
 const t0 = Date.now();
 const PART = process.env.PART?.split("/").map(Number);
 const AGG = !!process.env.AGG;
-const tag = QUICK ? "q" : "f";
+const tag = QUICK ? "q" : STRESS ? "st" : DROP ? `d${DROP}` : "f";
+const dropped = (sym: string, seed: number) => { let h = 2166136261 ^ seed; for (let i = 0; i < sym.length; i++) h = Math.imul(h ^ sym.charCodeAt(i), 16777619); return ((h >>> 0) % 100) < 20; };
 for (const [si, st] of strategies.entries()) {
   if (AGG) {
     const j = JSON.parse(readFileSync(`${DIR}/cells/${tag}_${st.id}.json`, "utf8"));
@@ -623,6 +628,8 @@ for (const [si, st] of strategies.entries()) {
   }
   if (PART && si % PART[1] !== PART[0]) continue;
   if (process.env.ONLY && !process.env.ONLY.split(",").includes(st.id)) continue;
+  if (DROP) st.trades = st.trades.filter((t) => t.s < 0 || !dropped(SYMS[t.s], DROP));
+  if (STRESS) st.trades = st.trades.map((t) => ({ ...t, pe: t.short ? t.pe * 0.995 : t.pe * 1.005 }));
   const R = { end: new Float64Array(W * K), broke: new Uint8Array(W * K), fees: new Float64Array(W * K), tax: new Float64Array(W * K), n: new Uint16Array(W * K), low: new Float64Array(W * K) };
   // Einstiege je Zeitraum über binäre Suche
   const es = st.trades.map((t) => t.e);
