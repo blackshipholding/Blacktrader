@@ -5,7 +5,7 @@
 import { displayCurrency } from "@/lib/client/eur";
 import { useLiveQuote } from "@/lib/client/liveQuote";
 import { money } from "@/lib/analysis/persona";
-import type { LiveStatus } from "@/lib/client/market";
+import { useLive, type LiveStatus } from "@/lib/client/market";
 import { lastPrice, potential, type ScanEntry } from "@/lib/client/scanner";
 import type { TradePlan } from "@/lib/analysis/score";
 import type { ReactNode } from "react";
@@ -55,6 +55,10 @@ export function EntryTile({
   const lq = useLiveQuote(asset, price == null && !position);
   const p = price ?? lq?.price ?? (entry ? lastPrice(entry) : undefined);
   const curShown = price == null && lq ? displayCurrency(asset, lq.currency ?? cur) : cur;
+  // Börse geschlossen (Nutzer 12.11.2026: „nur geschlossen reicht“): letzter Kurs älter als 30 Min – Krypto handelt immer
+  const liveItem = useLive(asset);
+  const quoteTime = liveItem?.time ?? lq?.time;
+  const closed = asset.kind !== "crypto" && quoteTime != null && Date.now() / 1000 - quoteTime > 30 * 60;
   const changeShown = changePct ?? lq?.changePct;
   const short = b?.color === "rot";
   // Abstand zur Zone: Kauf – Kurs fällt bis zur Oberkante; Short – Kurs steigt bis zur Unterkante
@@ -93,6 +97,7 @@ export function EntryTile({
         <div className="truncate text-[16px] font-semibold text-stone-50">{asset.name}</div>
         <div className="text-[13px] text-stone-400">
           {asset.symbol}
+          {closed && <span className="text-amber-300"> · geschlossen</span>}
           {position ? (position.pendingText ? "" : ` · ${position.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} ${position.unit ?? "Stück"} · Ø ${eurT(position.avg)}`) : p != null ? ` · ${money(p, cur)}` : ""}
           {!position && changeShown != null && <span className={changeShown >= 0 ? "text-up" : "text-down"}>{` ${changeShown >= 0 ? "+" : ""}${changeShown.toFixed(2).replace(".", ",")} %`}</span>}
         </div>
