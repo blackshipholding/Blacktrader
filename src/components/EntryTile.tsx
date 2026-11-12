@@ -4,6 +4,7 @@
 // Begründung, Wellenzählung und „übernehmen“ stehen in der Detailansicht (Antippen).
 import { displayCurrency } from "@/lib/client/eur";
 import { useLiveQuote } from "@/lib/client/liveQuote";
+import { marketClosed } from "@/lib/client/marketHours";
 import { money } from "@/lib/analysis/persona";
 import { useLive, type LiveStatus } from "@/lib/client/market";
 import { lastPrice, potential, type ScanEntry } from "@/lib/client/scanner";
@@ -58,7 +59,7 @@ export function EntryTile({
   // Börse geschlossen (Nutzer 12.11.2026: „nur geschlossen reicht“): letzter Kurs älter als 30 Min – Krypto handelt immer
   const liveItem = useLive(asset);
   const quoteTime = liveItem?.time ?? lq?.time;
-  const closed = asset.kind !== "crypto" && quoteTime != null && Date.now() / 1000 - quoteTime > 30 * 60;
+  const closed = marketClosed(asset.kind, quoteTime);
   const changeShown = changePct ?? lq?.changePct;
   const short = b?.color === "rot";
   // Abstand zur Zone: Kauf – Kurs fällt bis zur Oberkante; Short – Kurs steigt bis zur Unterkante

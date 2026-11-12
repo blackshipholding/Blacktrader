@@ -17,6 +17,7 @@ import { fmtPrice, money } from "../analysis/persona";
 import { tradeCurrency, tradeReturnEur } from "./eur";
 import { eurPerUnit, onFx } from "../fx";
 import { refreshFx } from "./fx";
+import { marketClosed } from "./marketHours";
 import { actions, getData, useAppData, type Trade, type WatchItem } from "../store/store";
 import type { Candle, Fundamentals, Horizon, Interval, NewsItem, ResolvedAsset } from "../types";
 import { notify } from "./alerts";
@@ -348,6 +349,15 @@ function trackTrades(trades: Trade[], live: Record<string, LiveState>) {
     const lv = live[instrumentKey(t)];
     if (!lv?.price || lv.status === "offline") continue;
     const price = lv.price;
+    // Börse geschlossen (Kurs älter als 30 Min, nicht Krypto): bei flatex löst nichts aus – Stop, Ziel und Limits NICHT prüfen
+    // (Nutzer 12.11.2026). Beim ersten frischen Kurs nach der Öffnung wird wieder geprüft.
+    if (marketClosed(t.kind, lv.time)) {
+      if (!lastTradeWrite[t.id] || Date.now() - lastTradeWrite[t.id] > 30e3) {
+        lastTradeWrite[t.id] = Date.now();
+        if (t.lastPrice !== price) actions.updateTrade(t.id, { lastPrice: price });
+      }
+      continue;
+    }
     if (t.strategy === "longterm") {
       // Langfristig: Teil-Orders ausführen, gesetzten Stop prüfen (Meldungen zur Zählung kommen aus der Kerzen-Prüfung)
       const msg = trackLongTerm(t, price);
