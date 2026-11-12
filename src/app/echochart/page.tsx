@@ -1,11 +1,12 @@
 "use client";
 // EchoChart: Hätte Blacktrader früher richtig gelegen? Einfach gehalten – eine große Zahl, ein Bild, Details zum Aufklappen.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ZoneHistoryChart } from "@/components/ZoneHistoryChart";
 import { runEcho, summarize, type EchoKind, type EchoZone } from "@/lib/analysis/echoZones";
 import { fmtPrice } from "@/lib/analysis/persona";
 import { INTERVAL_SECONDS, LOOKBACKS, loadHistory, planHistory, YAHOO_MAX_DAYS } from "@/lib/client/history";
 import { SCAN_GROUPS } from "@/lib/client/presets";
+import { isChance, isTopChance, notHeld, potential, runScan, useHeldKeys, useScan } from "@/lib/client/scanner";
 import { learnedParams } from "@/lib/client/trainerParams";
 import { useAppData } from "@/lib/store/store";
 import { ACCOUNT, simulateAccount, type SimTrade } from "@/lib/client/account";
@@ -52,11 +53,29 @@ export default function EchoChartPage() {
     return groups;
   }, [watchlist]);
   const all = options.flatMap((g) => g.assets);
+  // Gruppen = genau die Werte, die gerade in den Chancen stehen (gleiche Liste wie dort: Top 20 nach Potenzial, ohne Gehaltene)
+  const scan = useScan();
+  const held = useHeldKeys();
+  useEffect(() => {
+    void runScan();
+  }, []);
+  const chanceAssets = useMemo(
+    () =>
+      scan.entries
+        .filter((e) => isChance(e) && isTopChance(e) && notHeld(held)(e))
+        .map((e) => ({ e, p: potential(e) }))
+        .filter((x) => x.p != null)
+        .sort((a, b) => b.p!.score - a.p!.score)
+        .slice(0, 20)
+        .map((x) => x.e.asset),
+    [scan.entries, held],
+  );
+  const chanceBy = (k: AssetKind) => chanceAssets.filter((a) => a.kind === k);
   const groupKind = GROUP_KEYS[key];
   // „Alle zusammen“: Aktien, Rohstoffe und Krypto in einem Lauf
   const everything = key === "gruppe:alle";
-  const targets: ResolvedAsset[] = everything ? SCAN_GROUPS.flatMap((g) => g.assets) : groupKind ? SCAN_GROUPS.find((g) => g.kind === groupKind)!.assets : [all.find((a) => `${a.kind}:${a.symbol}` === key) ?? all[0]].filter(Boolean);
-  const label = everything ? "Alle Werte (Aktien, Rohstoffe, Krypto)" : groupKind ? `Alle ${SCAN_GROUPS.find((g) => g.kind === groupKind)!.title}` : targets[0]?.name ?? "";
+  const targets: ResolvedAsset[] = everything ? chanceAssets : groupKind ? chanceBy(groupKind) : [all.find((a) => `${a.kind}:${a.symbol}` === key) ?? all[0]].filter(Boolean);
+  const label = everything ? "Alle Chancen (Aktien, Rohstoffe, Krypto)" : groupKind ? `Chancen ${SCAN_GROUPS.find((g) => g.kind === groupKind)!.title}` : targets[0]?.name ?? "";
   const plan = targets[0] ? planHistory(targets[0], interval, days) : null;
 
   const reset = () => {
@@ -171,10 +190,10 @@ export default function EchoChartPage() {
           }}
         >
           <optgroup label="Ganze Gruppe">
-            <option value="gruppe:alle">Alle zusammen – Aktien, Rohstoffe, Krypto ({SCAN_GROUPS.reduce((a, g) => a + g.assets.length, 0)})</option>
+            <option value="gruppe:alle">Alle Chancen zusammen – Aktien, Rohstoffe, Krypto ({scan.at ? chanceAssets.length : "…"})</option>
             {SCAN_GROUPS.map((g) => (
               <option key={g.kind} value={`gruppe:${g.kind}`}>
-                Alle {g.title} ({g.assets.length})
+                Chancen {g.title} ({scan.at ? chanceBy(g.kind).length : "…"})
               </option>
             ))}
           </optgroup>
@@ -210,6 +229,8 @@ export default function EchoChartPage() {
           </div>
         </div>
         {plan && !plan.ok && <p className="text-[14px] text-amber-300">{plan.reason}</p>}
+        {(everything || groupKind) && scan.at && !targets.length && <p className="text-[14px] text-amber-300">Gerade keine Chancen in dieser Gruppe.</p>}
+        {(everything || groupKind) && !scan.at && <p className="text-[14px] text-stone-400">Blacktrader sucht gerade die aktuellen Chancen …</p>}
         <button className="btn-primary min-h-[48px] w-full" disabled={busy || !plan?.ok} onClick={run}>
           {busy ? "Läuft …" : "Prüfen"}
         </button>
