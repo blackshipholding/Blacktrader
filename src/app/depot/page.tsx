@@ -16,14 +16,14 @@ import { eurPerUnit } from "@/lib/fx";
 import { instrumentKey, useMarket } from "@/lib/client/market";
 import { actions, useAppData, type Trade } from "@/lib/store/store";
 import { HORIZON_LABEL } from "@/lib/types";
-import { ACCOUNT, computeAccount, SHIPMASTER } from "@/lib/client/account";
+import { ACCOUNT, computeAccount, investedOf, SHIPMASTER } from "@/lib/client/account";
 import { CapitalBox } from "@/components/CapitalBox";
 import { BuyHold } from "@/components/BuyHold";
 import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
 import { PositionCard } from "@/components/PositionCard";
 import { blueGroups } from "@/lib/client/position";
-import { HeldGauge } from "@/components/NeutralGauge";
+import { GAUGE_PREFIX, HeldGauge } from "@/components/NeutralGauge";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const signed = (x: number, d = 2) => `${x >= 0 ? "+" : ""}${x.toFixed(d).replace(".", ",")} %`;
@@ -58,6 +58,7 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
   const ret = t.status === "closed" ? t.returnPct : t.status === "open" && cur ? tradeReturnEur(t, cur) : undefined;
   const st = statusText(t);
   const stopHint = brokerStop(t);
+  const green = !isLt && t.direction === "long";
   return (
     <div className="relative">
       {/* Aktionen hinter der Karte (nur beim Wischen nach links sichtbar) */}
@@ -94,13 +95,22 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
             </div>
           </button>
           <div className="text-right">
-            <div className={`num text-[19px] font-semibold ${ret == null ? "text-amber-300" : ret >= 0 ? "text-up" : "text-down"}`}>{ret == null ? "–" : signed(ret)}</div>
-            <div className="text-[13px] text-stone-400">{t.status === "closed" ? "Ergebnis" : "Stand"}</div>
+            {t.status === "pending" && cur != null && t.entry > 0 ? (
+              <>
+                <div className="text-[15px] font-semibold text-amber-300">wartet auf Einstieg</div>
+                <div className="num text-[13px] text-stone-400">{`noch ${(Math.abs(cur - t.entry) / cur * 100).toFixed(1).replace(".", ",")} % bis zum Einstieg`}</div>
+              </>
+            ) : (
+              <>
+                <div className={`num text-[19px] font-semibold ${ret == null ? "text-amber-300" : ret >= 0 ? "text-up" : "text-down"}`}>{ret == null ? "–" : signed(ret)}</div>
+                <div className="text-[13px] text-stone-400">{t.status === "closed" ? "Ergebnis" : "Stand"}</div>
+              </>
+            )}
           </div>
         </div>
         {t.status !== "closed" && (
           <div className="mt-2">
-            <HeldGauge kind={t.kind} symbol={t.symbol} />
+            <HeldGauge kind={t.kind} symbol={t.symbol} prefix={t.status === "pending" ? (isLt ? GAUGE_PREFIX.blau : t.direction === "long" ? GAUGE_PREFIX.gruen : GAUGE_PREFIX.rot) : undefined} />
           </div>
         )}
         {stopHint && (
@@ -131,20 +141,24 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
           <span className={st.cls}>{st.text}</span>
           {t.unverified && <span className="badge-wait">Herkunft unklar</span>}
         </div>
+        {green && t.status !== "closed" ? (
+          <GreenBody t={t} cur={cur} onAction={onAction} />
+        ) : (
         <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
-          <span>
-            <span className="label block">Einstieg</span>
-            {money(t.entry, tradeCurrency(t))}
-          </span>
-          <span>
-            <span className="label block">{t.status === "closed" ? "Ausstieg" : "Kurs"}</span>
-            {cur != null ? money(cur, tradeCurrency(t)) : "–"}
-          </span>
-          <span>
-            <span className="label block">Stop / Ziel</span>
-            {isLt ? `${t.stop ? money(t.stop, tradeCurrency(t)) : "kein Stop"} / ${t.targets[0] != null ? money(t.targets[0], tradeCurrency(t)) : "–"}` : `${money(t.stop, tradeCurrency(t))} / ${t.targets[0] != null ? money(t.targets[0], tradeCurrency(t)) : "–"}`}
-          </span>
-        </div>
+            <span>
+              <span className="label block">Einstieg</span>
+              {money(t.entry, tradeCurrency(t))}
+            </span>
+            <span>
+              <span className="label block">{t.status === "closed" ? "Ausstieg" : "Kurs"}</span>
+              {cur != null ? money(cur, tradeCurrency(t)) : "–"}
+            </span>
+            <span>
+              <span className="label block">Stop / Ziel</span>
+              {isLt ? `${t.stop ? money(t.stop, tradeCurrency(t)) : "kein Stop"} / ${t.targets[0] != null ? money(t.targets[0], tradeCurrency(t)) : "–"}` : `${money(t.stop, tradeCurrency(t))} / ${t.targets[0] != null ? money(t.targets[0], tradeCurrency(t)) : "–"}`}
+            </span>
+          </div>
+        )}
         {t.strategy === "longterm" && !!t.tranches?.length && (
           <div className="mt-2 rounded-xl bg-sky-500/10 p-2.5 text-[13px] text-sky-100">
             <TrancheList t={t} />
@@ -152,6 +166,67 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
           </div>
         )}
       </article>
+    </div>
+  );
+}
+
+/** Grüner Trade im Depot – gleicher Aufbau wie die blaue Positionskarte (nur Anzeige, Aktionen wie bisher) */
+function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t: Trade) => void }) {
+  const fx = eurPerUnit(tradeCurrency(t)) ?? 1;
+  const cc = tradeCurrency(t);
+  const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const pending = t.status === "pending";
+  const invested = investedOf(t);
+  const unit = t.kind === "crypto" ? t.symbol.replace(/-USD$/, "") : "Stück";
+  const qty = t.shares ?? (t.entry > 0 ? invested / (t.entry * (t.fxEntry ?? fx)) : 0);
+  const entryEur = qty > 0 ? invested / qty : t.entry * (t.fxEntry ?? fx);
+  const profit = !pending && cur != null && t.entry > 0 ? tradeReturnEur(t, cur) : undefined;
+  const profitEur = profit != null ? invested * (profit / 100) : null;
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  return (
+    <div onClick={stop}>
+      <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
+        <div className="rounded-xl bg-white/5 px-2 py-1.5">
+          <span className="label block">{pending ? "Geplant" : "Gekauft"}</span>
+          <span className="font-semibold text-stone-50">{qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} {unit}</span>
+        </div>
+        <div className="rounded-xl bg-white/5 px-2 py-1.5">
+          <span className="label block">Investiert</span>
+          <span className="font-semibold text-stone-50">{pending ? eur(0) : eur(invested)}</span>
+        </div>
+        <div className="rounded-xl bg-white/5 px-2 py-1.5">
+          <span className="label block">Ø Einstieg</span>
+          <span className="font-semibold text-stone-50">{pending ? "–" : eur(entryEur)}</span>
+        </div>
+      </div>
+      <div className="num mt-2 flex flex-wrap justify-between gap-x-3 text-[14px]">
+        <span>Kurs {cur != null ? <b>{money(cur, cc)}</b> : "–"}</span>
+        {profitEur != null && <span className={profitEur >= 0 ? "text-up" : "text-down"}>{profitEur >= 0 ? "Gewinn" : "Verlust"} {eur(profitEur, true)}</span>}
+        <span className="text-stone-400">{t.stop > 0 ? `Stop ${money(t.stop, cc)}` : "kein Stop"}</span>
+      </div>
+      <div className="num mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-[13px] text-emerald-100">
+        <div className="mb-1 flex items-center justify-between font-semibold text-emerald-300">
+          <span>Kauf · {eur(invested)}</span>
+          <span className="font-normal text-stone-400">{new Date(t.openedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}</span>
+        </div>
+        <div className="grid grid-cols-[2.75rem_1fr_auto] items-baseline gap-x-1.5 whitespace-nowrap py-0.5 text-[12px] max-[370px]:text-[11px]">
+          <span className="text-emerald-300">Kauf</span>
+          <span>{money(t.entry, cc)} · {qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} {unit} · {eur(invested)}</span>
+          <span className={pending ? "text-stone-400" : "text-up"}>{pending ? "wartet" : "✓"}</span>
+        </div>
+        {t.targets[0] != null && <p className="text-stone-300">Ziel {money(t.targets[0], cc)}</p>}
+      </div>
+      {pending && (
+        <div className="num mt-2 flex justify-between rounded-xl bg-white/5 px-2.5 py-2 text-[14px] text-stone-300">
+          <span>Wartende Order (reserviert)</span>
+          <span>{eur(invested)}</span>
+        </div>
+      )}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button className="btn min-h-[44px] border-gold/50 text-gold-light" disabled={pending} onClick={() => onAction(t)}>Verkaufen</button>
+        <button className="btn min-h-[44px] border-gold/50 text-gold-light" disabled={pending} onClick={() => onAction(t)}>Stop</button>
+        <button className="btn min-h-[44px] border-gold/50 text-gold-light" disabled={!pending} onClick={() => onAction(t)}>Orders</button>
+      </div>
     </div>
   );
 }
@@ -192,7 +267,7 @@ export default function DepotPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] text-gold">Depot</h1>
-          <p className="text-[15px] text-stone-400">{tab === "bt" ? `Blacktrader-Konto nach Shipmaster ${SHIPMASTER.version}: 10 % vom Kontostand je Kauf, Gewinn-Schutz bei Blau.` : "Deine eigenen Käufe – verkauft wird nur, wenn du es willst."}</p>
+          {tab === "bh" && <p className="text-[15px] text-stone-400">Deine eigenen Käufe – verkauft wird nur, wenn du es willst.</p>}
         </div>
         {tab === "bt" && <Legend />}
       </div>
