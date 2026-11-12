@@ -18,3 +18,9 @@ als alle Alternativen. Details in `CLAUDE.md` und `DOKUMENTATION.md`.
 
 **Regel des Nutzers:** Jede Änderung, die Shipmaster 0.1, Blacktraders Analyse/Handel oder diesen Härtetest
 beeinflusst, erst mit dem Nutzer besprechen.
+
+## Dividenden-Szenario (12.11.2026, nur Messung)
+`sim_div.ts` = `sim.ts` + Umschalter `DIV` (0 = bereinigte Kurse wie bisher, 1 = echte Kurse + Dividenden, 2 = echte Kurse ohne Dividende).
+Die echten Kurse werden aus den dividenden-bereinigten Kursen und der Dividendenliste des Nutzers (`SP500_Dividenden_alle_Zahlungen.csv`,
+je heutiger Aktie) rückwärts rekonstruiert (Probe: Apple 1980 = 0,1283 USD wie Yahoo). Aufruf: `SIG=sigP7 POS=A ONLY=P7 DIV=1 tsx sim_div.ts`.
+Dividenden fließen beim Schließen der Position in den Gewinn (KESt 27,5 % mit Verlusttopf).
