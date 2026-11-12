@@ -13,7 +13,8 @@ import { money } from "@/lib/analysis/persona";
 import { haptic } from "@/lib/client/alerts";
 import { hasOpenTrade, openPaperTrade } from "@/lib/client/autotrade";
 import { avgEntry, effectiveLevels, filledTranches, openLongTermTrade } from "@/lib/client/longterm";
-import type { LiveStatus } from "@/lib/client/market";
+import { useLive, type LiveStatus } from "@/lib/client/market";
+import { useEuroNative } from "@/lib/client/euroPrice";
 import type { ScanEntry } from "@/lib/client/scanner";
 import { getData, useAppData } from "@/lib/store/store";
 import { HORIZON_LABEL, type Candle, type Horizon, type ResolvedAsset } from "@/lib/types";
@@ -56,23 +57,6 @@ function viewCandles(e: ScanEntry): { candles: Candle[]; res: AnalysisResult | n
   return { candles: h ? e.horizons[h]!.candles : e.ltCandles ?? [], res: h ? e.horizons[h]!.res : null, h };
 }
 
-function PastRow({ p, cur }: { p: HistEntry; cur?: string }) {
-  return (
-    <li className="flex items-start justify-between gap-2 py-1.5 text-[13px] text-stone-400">
-      <span className="min-w-0">
-        <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-stone-500" />
-        {COLOR_LABEL[p.color]}
-        {p.horizon ? ` · ${HORIZON_LABEL[p.horizon]}` : ""} · {p.zoneTop != null ? `${money(p.zoneTop, cur)} – ${money(p.zoneBottom!, cur)}` : "–"}
-      </span>
-      <span className="shrink-0 text-right">
-        {dateStr(p.from)}–{p.to ? dateStr(p.to) : "heute"}
-        <br />
-        <span className={p.status === "erledigt" ? "text-emerald-300/80" : p.status === "ungültig" ? "text-red-300/80" : "text-stone-500"}>{p.status ? PAST_LABEL[p.status] : ""}</span>
-      </span>
-    </li>
-  );
-}
-
 export function AssetCard({
   asset,
   entry,
@@ -103,14 +87,16 @@ export function AssetCard({
   fromDepot?: boolean;
 }) {
   const [confirm, setConfirm] = useState<null | "trade" | "longterm" | "nachkauf">(null);
-  const [showPast, setShowPast] = useState(false);
   const trades = useAppData((d) => d.trades);
   const expert = useAppData((d) => d.settings.expertMode);
   const cur = displayCurrency(asset, asset.currency ?? entry?.asset.currency);
   const b = entry?.best;
   const view: ReturnType<typeof viewCandles> = entry ? viewCandles(entry) : { candles: [], res: null };
   const res = view.res;
-  const lastPrice = price ?? res?.price ?? entry?.ltCandles?.at(-1)?.close;
+  // EIN Live-Kurs (Euro-Börse / Binance EUR, als Originalwährungs-Gegenwert): eigener Kurs → Live-Kurs der App → Euro-Abruf → Analyse
+  const liveQ = useLive(asset);
+  const euroLive = useEuroNative(asset, cur, price == null && liveQ?.price == null);
+  const lastPrice = price ?? liveQ?.price ?? euroLive ?? res?.price ?? entry?.ltCandles?.at(-1)?.close;
   // Farbe folgt dem Kauf (nur aus dem Blacktrader-Depot): blau gekauft → blau, grün gekauft → grün, egal was die Analyse gerade zeigt
   const openMine = trades.filter((t) => t.status !== "closed" && t.symbol === asset.symbol && t.kind === asset.kind);
   const heldBlue = openMine.filter((t) => (t.strategy === "longterm" || t.strategy === "core") && t.lt).sort((x, y) => x.openedAt - y.openedAt).at(-1);
@@ -152,16 +138,6 @@ export function AssetCard({
       : mv?.longterm ?? null;
   const wave = mv?.best;
 
-  const myLine = (() => {
-    if (!myLong) return null;
-    if (myLong.strategy === "core") return "Deine frühere Kernposition (vor dem Update) – schließen kannst du sie im Depot.";
-    const n = filledTranches(myLong).length;
-    const e = avgEntry(myLong);
-    const p = lastPrice && n ? ((lastPrice - e) / e) * 100 : null;
-    return n
-      ? `Deine Langfrist-Position: ${n} von ${myLong.tranches?.length ?? 1} Teilen gekauft, Ø ${money(e, cur)}${p != null ? ` · ${p >= 0 ? "+" : ""}${p.toFixed(1).replace(".", ",")} %` : ""}${myLong.stop ? ` · Stop ${money(myLong.stop, cur)}` : " · kein Stop"}`
-      : "Deine Langfrist-Orders warten im Einstiegsbereich.";
-  })();
 
   return (
     <article className={`card space-y-3 p-4 ${show ? EDGE[show] : ""}`}>
@@ -259,37 +235,19 @@ export function AssetCard({
                 <span className="num text-[15px] font-semibold text-stone-200">{strength != null ? strength.toFixed(0) : "–"}</span>
               </>
             ) : (
-              <span className="flex-1 text-[14px] text-stone-400">{ownLt ? "Deine Langfrist-Position" : lt ? (lastPrice != null && lastPrice <= lt.zoneTop ? "Kurs im Einstiegsbereich" : "Bereich zulaufend") : "Kein Einstieg"}</span>
+              <span className="flex-1" />
             )}
             <span className={BADGE[show ?? b.color]}>{isNachkauf ? "Nachkauf" : COLOR_LABEL[show ?? b.color]}</span>
             {plan && riskPct > RISK_LIMIT && <span className="badge-risk">Hohes Risiko</span>}
           </div>
 
-          {(myLine || isNachkauf || myTrade?.promotedAt) && (
+          {(isNachkauf || myTrade?.promotedAt) && (
             <div className="space-y-1.5 text-[14px]">
               {isNachkauf && <p className="text-sky-200">Nachkauf möglich: neuer blauer Bereich zu deiner Position – {ADD.stake.toLocaleString("de-DE")} € (noch {nk!.left} von {ADD.max}).</p>}
-              {myLine && <p className="text-sky-200">{myLine}</p>}
-              {myTrade?.promotedAt && (
+                            {myTrade?.promotedAt && (
                 <p className="text-emerald-200">
                   Stop nachgezogen am {new Date(myTrade.promotedAt).toLocaleDateString("de-DE")}: {myTrade.promoteReason}
                 </p>
-              )}
-            </div>
-          )}
-
-          {/* Verlauf: alte Einstiege (grau) */}
-          {past.length > 0 && (
-            <div className="rounded-xl bg-white/[0.03] px-3">
-              <button className="flex min-h-[44px] w-full items-center justify-between text-[14px] text-stone-300" onClick={() => setShowPast(!showPast)} aria-expanded={showPast}>
-                <span>Verlauf ({past.length})</span>
-                <span className="text-stone-500">{showPast ? "▲" : "▼"}</span>
-              </button>
-              {showPast && (
-                <ul className="divide-y divide-white/5 pb-2">
-                  {past.map((p) => (
-                    <PastRow key={`${p.key}-${p.from}`} p={p} cur={cur} />
-                  ))}
-                </ul>
               )}
             </div>
           )}

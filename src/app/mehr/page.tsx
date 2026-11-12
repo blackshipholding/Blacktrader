@@ -46,6 +46,7 @@ export default function MehrPage() {
       <div className="card divide-y divide-white/5 overflow-hidden">
         <Row href="/echochart" icon={<IconChart className="h-6 w-6" />} title="EchoChart" text="Wie gut wäre Blacktrader früher gewesen?" />
         <Row href="/trainer" icon={<IconSpark className="h-6 w-6" />} title="Trainer" text="Trefferquote, Lernschritte, Versionen" />
+        <Row href="/kurstest" icon={<IconShield className="h-6 w-6" />} title="Kurs-Test" text="Welche deutsche Börse für die Euro-Kurse? (gilt für die ganze App)" />
         <Row href="/regelwerk" icon={<IconShield className="h-6 w-6" />} title="Regelwerk" text="Wann Blacktrader etwas ändern darf – und was nie" />
         <Row href="/einstellungen" icon={<IconGear className="h-6 w-6" />} title="Einstellungen" text="Gewichtung, Alarme, Schlüssel, Export" />
       </div>

@@ -3,6 +3,7 @@
 // Stimmungs-Balken (alle Farben gleich), Einstieg/Stop/Ziel. KEIN Text in der Kachel (Wunsch des Nutzers) – der Satz,
 // Begründung, Wellenzählung und „übernehmen“ stehen in der Detailansicht (Antippen).
 import { displayCurrency } from "@/lib/client/eur";
+import { useEuroNative } from "@/lib/client/euroPrice";
 import { money } from "@/lib/analysis/persona";
 import type { LiveStatus } from "@/lib/client/market";
 import { lastPrice, potential, type ScanEntry } from "@/lib/client/scanner";
@@ -28,7 +29,9 @@ export interface TilePosition {
   onOpenPosition: () => void;
   /** Einheit statt „Stück“ (Krypto: Kürzel) */
   unit?: string;
-  /** Wartende Position: statt Wert/Gewinn diesen Text zeigen (z. B. „wartet auf Einstieg“) */
+  /** Live-Kurs in Euro je Stück/Einheit – steht oben rechts (Nutzer 12.11.2026: überall derselbe Live-Kurs) */
+  livePrice?: number | null;
+  /** Wartende Position: Unterzeile (z. B. „noch 0,7 % bis zum Einstieg“); der Titel wird durch den Live-Kurs ersetzt */
   pendingText?: { title: string; sub?: string };
 }
 const eurT = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -48,7 +51,9 @@ export function EntryTile({
 }) {
   const b = entry?.best;
   const cur = displayCurrency(asset, asset.currency ?? entry?.asset.currency);
-  const p = price ?? (entry ? lastPrice(entry) : undefined);
+  // EIN Live-Kurs: eigener Kurs der Seite, sonst Euro-Live-Kurs (deutsche Börse / Binance EUR), zuletzt Kerzen-Schlusskurs
+  const euroLive = useEuroNative(asset, cur, price == null && !position);
+  const p = price ?? euroLive ?? (entry ? lastPrice(entry) : undefined);
   const short = b?.color === "rot";
   // Abstand zur Zone: Kauf – Kurs fällt bis zur Oberkante; Short – Kurs steigt bis zur Unterkante
   const dist =
@@ -92,13 +97,13 @@ export function EntryTile({
       </div>
       {position && position.pendingText && (
         <div className="shrink-0 text-right">
-          <div className="text-[15px] font-semibold text-amber-300">{position.pendingText.title}</div>
+          <div className={position.livePrice != null ? "num text-[17px] font-semibold text-stone-50" : "text-[15px] font-semibold text-amber-300"}>{position.livePrice != null ? eurT(position.livePrice) : position.pendingText.title}</div>
           {position.pendingText.sub && <div className="num text-[13px] text-stone-400">{position.pendingText.sub}</div>}
         </div>
       )}
       {position && !position.pendingText && (
         <div className="shrink-0 text-right">
-          <div className="num text-[17px] font-semibold text-stone-50">{position.value != null ? eurT(position.value) : "–"}</div>
+          <div className="num text-[17px] font-semibold text-stone-50">{position.livePrice != null ? eurT(position.livePrice) : position.value != null ? eurT(position.value) : "–"}</div>
           <div className={`num text-[14px] ${position.open == null ? "text-stone-400" : position.open >= 0 ? "text-up" : "text-down"}`}>
             {position.open == null ? "Kurs lädt …" : `${eurT(position.open, true)} (${position.openPct != null ? `${position.openPct >= 0 ? "+" : ""}${position.openPct.toFixed(2).replace(".", ",")} %` : "–"})`}
           </div>

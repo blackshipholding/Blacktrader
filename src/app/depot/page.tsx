@@ -212,6 +212,7 @@ function GreenTile({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
         value,
         open: profitEur,
         openPct: ret,
+        livePrice: cur != null ? cur * fx : null,
         onOpenPosition: () => onOpenAsset(t),
         unit,
         pendingText: pending && cur != null && t.entry > 0 ? { title: "wartet auf Einstieg", sub: `noch ${((Math.abs(cur - t.entry) / cur) * 100).toFixed(1).replace(".", ",")} % bis zum Einstieg` } : pending ? { title: "wartet auf Einstieg" } : undefined,

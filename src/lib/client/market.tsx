@@ -4,6 +4,7 @@
 import { checkWatchZones } from "./zoneAlert";
 import { startAutoBackup } from "./autoBackup";
 import { startShare } from "./dividendShare";
+import { binanceEurPair, euroQuote } from "./euroPrice";
 import { brokerStop } from "./brokerStop";
 import { exhaustionAt, rsi } from "../analysis/indicators";
 import { resumeTraining } from "./trainingSession";
@@ -163,7 +164,9 @@ export function MarketProvider({ children }: { children: ReactNode }) {
         if (inst.binanceSymbol && Date.now() - lastWs < 30e3) return;
         try {
           const q = await api.quote(inst);
-          set(key, { price: q.price, changePct: q.changePct, currency: q.currency, time: q.time, status: q.delayed ? "delayed" : "live", source: q.source, error: undefined, updated: Date.now() });
+          // EIN Euro-Kurs für die ganze App: deutsche Börse (Aktien) bzw. Binance in Euro (Krypto); sonst bisheriger Kurs
+          const eu = await euroQuote(inst, q.currency).catch(() => null);
+          set(key, { price: eu ? eu.native : q.price, changePct: q.changePct, currency: q.currency, time: eu?.time ?? q.time, status: q.delayed && !eu ? "delayed" : "live", source: eu ? eu.source : q.source, error: undefined, updated: Date.now() });
         } catch (e) {
           const prev = liveRef.current[key];
           const stale = !prev?.updated || Date.now() - prev.updated > pollMs * 3;
@@ -175,11 +178,15 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       cleanups.push(() => clearInterval(t));
       if (inst.binanceSymbol && binanceStream) {
         cleanups.push(
-          binanceStream.subscribe(`${inst.binanceSymbol}@miniTicker`, (m) => {
+          // Euro-Paar (z. B. ETHEUR), umgerechnet auf den USDT-Gegenwert – so passen Stops und Zonen weiter
+          binanceStream.subscribe(`${binanceEurPair(inst.binanceSymbol) ?? inst.binanceSymbol}@miniTicker`, (m) => {
             lastWs = Date.now();
-            const c = Number(m.c);
-            const o = Number(m.o);
-            set(key, { price: c, changePct: o ? ((c - o) / o) * 100 : 0, currency: "USDT", time: Math.floor(Number(m.E) / 1000), status: "live", source: "Binance WebSocket", error: undefined, updated: Date.now() });
+            const eurPair = !!binanceEurPair(inst.binanceSymbol);
+            const f = eurPair ? eurPerUnit("USDT") : 1;
+            if (!f) return;
+            const c = Number(m.c) / f;
+            const o = Number(m.o) / f;
+            set(key, { price: c, changePct: o ? ((c - o) / o) * 100 : 0, currency: "USDT", time: Math.floor(Number(m.E) / 1000), status: "live", source: eurPair ? "Binance EUR" : "Binance WebSocket", error: undefined, updated: Date.now() });
           }),
         );
       }

@@ -45,6 +45,9 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
   // Namen der Käufe der Reihe nach (Wunsch des Nutzers): Zentraldepot, 2. Kauf, 3. Kauf …
   const lotName = (_t: Trade, k: number) => (k <= 0 ? "Zentraldepot" : `${k + 1}. Kauf`);
   const pending = group.every((t) => t.status === "pending");
+  // Wartend: Abstand des Live-Kurses zum ersten (höchsten) Einstiegs-Limit
+  const nextLimit = Math.max(0, ...group.flatMap((t) => trancheRows(t)).filter((x) => !x.filledAt).map((x) => x.price));
+  const waitSub = priceNow != null && nextLimit > 0 ? (priceNow > nextLimit ? `noch ${(((priceNow - nextLimit) / priceNow) * 100).toFixed(1).replace(".", ",")} % bis zum Einstieg` : "Kurs im Einstiegsbereich") : undefined;
   // Einstiege fortlaufend zählen (Wunsch des Nutzers): gekaufte Teile nach Kaufzeit über alle Käufe, danach die
   // wartenden – z. B. Zentraldepot Teil 1, 2. Kauf (= 2. Einstieg), dann Zentraldepot Teil 3 und 4 (wartend)
   const entryNo = new Map<string, number>();
@@ -70,7 +73,8 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
         openPct: s.pct,
         onOpenPosition: onOpen,
         unit,
-        pendingText: pending ? { title: "wartet auf Einstieg", sub: priceEur != null && s.reserved > 0 ? `${eur(s.reserved)} reserviert` : undefined } : undefined,
+        livePrice: priceEur,
+        pendingText: pending ? { title: "wartet auf Einstieg", sub: waitSub } : undefined,
       }}
       levels={{
         entry: s.avgEur != null ? eur(s.avgEur) : "–",
