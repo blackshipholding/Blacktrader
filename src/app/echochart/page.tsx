@@ -53,8 +53,10 @@ export default function EchoChartPage() {
   }, [watchlist]);
   const all = options.flatMap((g) => g.assets);
   const groupKind = GROUP_KEYS[key];
-  const targets: ResolvedAsset[] = groupKind ? SCAN_GROUPS.find((g) => g.kind === groupKind)!.assets : [all.find((a) => `${a.kind}:${a.symbol}` === key) ?? all[0]].filter(Boolean);
-  const label = groupKind ? `Alle ${SCAN_GROUPS.find((g) => g.kind === groupKind)!.title}` : targets[0]?.name ?? "";
+  // „Alle zusammen“: Aktien, Rohstoffe und Krypto in einem Lauf
+  const everything = key === "gruppe:alle";
+  const targets: ResolvedAsset[] = everything ? SCAN_GROUPS.flatMap((g) => g.assets) : groupKind ? SCAN_GROUPS.find((g) => g.kind === groupKind)!.assets : [all.find((a) => `${a.kind}:${a.symbol}` === key) ?? all[0]].filter(Boolean);
+  const label = everything ? "Alle Werte (Aktien, Rohstoffe, Krypto)" : groupKind ? `Alle ${SCAN_GROUPS.find((g) => g.kind === groupKind)!.title}` : targets[0]?.name ?? "";
   const plan = targets[0] ? planHistory(targets[0], interval, days) : null;
 
   const reset = () => {
@@ -169,6 +171,7 @@ export default function EchoChartPage() {
           }}
         >
           <optgroup label="Ganze Gruppe">
+            <option value="gruppe:alle">Alle zusammen – Aktien, Rohstoffe, Krypto ({SCAN_GROUPS.reduce((a, g) => a + g.assets.length, 0)})</option>
             {SCAN_GROUPS.map((g) => (
               <option key={g.kind} value={`gruppe:${g.kind}`}>
                 Alle {g.title} ({g.assets.length})
