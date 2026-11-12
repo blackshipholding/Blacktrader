@@ -14,6 +14,7 @@ import { haptic } from "@/lib/client/alerts";
 import { hasOpenTrade, openPaperTrade } from "@/lib/client/autotrade";
 import { avgEntry, effectiveLevels, filledTranches, openLongTermTrade } from "@/lib/client/longterm";
 import { useLive, type LiveStatus } from "@/lib/client/market";
+import { useLiveQuote } from "@/lib/client/liveQuote";
 import type { ScanEntry } from "@/lib/client/scanner";
 import { getData, useAppData } from "@/lib/store/store";
 import { HORIZON_LABEL, type Candle, type Horizon, type ResolvedAsset } from "@/lib/types";
@@ -94,7 +95,8 @@ export function AssetCard({
   const res = view.res;
   // EIN Live-Kurs (Yahoo/Binance): eigener Kurs → Live-Kurs der App → Analyse
   const liveQ = useLive(asset);
-  const lastPrice = price ?? liveQ?.price ?? res?.price ?? entry?.ltCandles?.at(-1)?.close;
+  const ownQ = useLiveQuote(asset, price == null && liveQ?.price == null);
+  const lastPrice = price ?? liveQ?.price ?? ownQ?.price ?? res?.price ?? entry?.ltCandles?.at(-1)?.close;
   // Farbe folgt dem Kauf (nur aus dem Blacktrader-Depot): blau gekauft → blau, grün gekauft → grün, egal was die Analyse gerade zeigt
   const openMine = trades.filter((t) => t.status !== "closed" && t.symbol === asset.symbol && t.kind === asset.kind);
   const heldBlue = openMine.filter((t) => (t.strategy === "longterm" || t.strategy === "core") && t.lt).sort((x, y) => x.openedAt - y.openedAt).at(-1);

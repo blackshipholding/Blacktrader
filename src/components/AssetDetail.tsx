@@ -13,6 +13,7 @@ import { money } from "@/lib/analysis/persona";
 import { api } from "@/lib/client/api";
 import { binanceStream } from "@/lib/client/binanceWs";
 import { useLive } from "@/lib/client/market";
+import { useLiveQuote } from "@/lib/client/liveQuote";
 import { SCAN_PRESETS } from "@/lib/client/presets";
 import { useScan } from "@/lib/client/scanner";
 import { actions, useAppData } from "@/lib/store/store";
@@ -143,7 +144,8 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes
   // Alle offenen Käufe dieses Werts (Zentraldepot, 2. Kauf …) – im Chart: neuester blau, ältere grau
   const allTrades = useAppData((d) => d.trades);
   const buys = useMemo(() => allTrades.filter((t) => t.strategy === "longterm" && t.status !== "closed" && t.symbol === asset.symbol && t.lt).sort((a, b) => a.openedAt - b.openedAt), [allTrades, asset.symbol]);
-  const currency = displayCurrency(asset, live?.currency ?? asset.currency);
+  const ownQ = useLiveQuote(asset, live?.price == null);
+  const currency = displayCurrency(asset, live?.currency ?? ownQ?.currency ?? asset.currency);
   const trainerV = useTrainerVersion();
   const analysis = useMemo(
     () =>
@@ -238,9 +240,9 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes
             {asset.exchange ? ` · ${asset.exchange}` : ""}
           </div>
           {/* Mit Einstiegs-Kachel darüber steht der Live-Kurs nur dort (Nutzer 12.11.2026: ein Kurs) */}
-          {!hideTake && <div className="num text-[24px] font-semibold text-stone-50">{live?.price != null ? money(live.price, currency) : analysis ? money(analysis.price, currency) : "–"}</div>}
+          {!hideTake && <div className="num text-[24px] font-semibold text-stone-50">{live?.price != null ? money(live.price, currency) : ownQ ? money(ownQ.price, currency) : analysis ? money(analysis.price, currency) : "–"}</div>}
           <div className="flex items-center gap-2">
-            {live?.changePct != null && <span className={`num text-[15px] ${live.changePct >= 0 ? "text-up" : "text-down"}`}>{`${live.changePct >= 0 ? "+" : ""}${live.changePct.toFixed(2).replace(".", ",")} %`}</span>}
+            {(live?.changePct ?? ownQ?.changePct) != null && (() => { const c = (live?.changePct ?? ownQ?.changePct)!; return <span className={`num text-[15px] ${c >= 0 ? "text-up" : "text-down"}`}>{`${c >= 0 ? "+" : ""}${c.toFixed(2).replace(".", ",")} %`}</span>; })()}
             {/* Werte außerhalb von Watchlist/Depot haben keinen Live-Kurs – dann Status der geladenen Kerzen statt ewig „Lädt“ */}
             <StatusPill status={live?.status ?? (candles.length ? (source === "Binance" ? "live" : "delayed") : undefined)} source={live?.source ?? source} />
           </div>

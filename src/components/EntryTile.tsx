@@ -3,6 +3,7 @@
 // Stimmungs-Balken (alle Farben gleich), Einstieg/Stop/Ziel. KEIN Text in der Kachel (Wunsch des Nutzers) – der Satz,
 // Begründung, Wellenzählung und „übernehmen“ stehen in der Detailansicht (Antippen).
 import { displayCurrency } from "@/lib/client/eur";
+import { useLiveQuote } from "@/lib/client/liveQuote";
 import { money } from "@/lib/analysis/persona";
 import type { LiveStatus } from "@/lib/client/market";
 import { lastPrice, potential, type ScanEntry } from "@/lib/client/scanner";
@@ -50,8 +51,11 @@ export function EntryTile({
 }) {
   const b = entry?.best;
   const cur = displayCurrency(asset, asset.currency ?? entry?.asset.currency);
-  // EIN Live-Kurs: Kurs der Seite (Yahoo/Binance), sonst letzter Kerzen-Schlusskurs
-  const p = price ?? (entry ? lastPrice(entry) : undefined);
+  // EIN Live-Kurs: Kurs der Seite (Watchlist/Depot), sonst eigener Live-Abruf (Übersicht, Chancen), zuletzt Kerzen-Schlusskurs
+  const lq = useLiveQuote(asset, price == null && !position);
+  const p = price ?? lq?.price ?? (entry ? lastPrice(entry) : undefined);
+  const curShown = price == null && lq ? displayCurrency(asset, lq.currency ?? cur) : cur;
+  const changeShown = changePct ?? lq?.changePct;
   const short = b?.color === "rot";
   // Abstand zur Zone: Kauf – Kurs fällt bis zur Oberkante; Short – Kurs steigt bis zur Unterkante
   const dist =
@@ -90,7 +94,7 @@ export function EntryTile({
         <div className="text-[13px] text-stone-400">
           {asset.symbol}
           {position ? (position.pendingText ? "" : ` · ${position.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} ${position.unit ?? "Stück"} · Ø ${eurT(position.avg)}`) : p != null ? ` · ${money(p, cur)}` : ""}
-          {!position && changePct != null && <span className={changePct >= 0 ? "text-up" : "text-down"}>{` ${changePct >= 0 ? "+" : ""}${changePct.toFixed(2).replace(".", ",")} %`}</span>}
+          {!position && changeShown != null && <span className={changeShown >= 0 ? "text-up" : "text-down"}>{` ${changeShown >= 0 ? "+" : ""}${changeShown.toFixed(2).replace(".", ",")} %`}</span>}
         </div>
       </div>
       {position && position.pendingText && (
