@@ -47,6 +47,12 @@ const bump = () => {
 export const divKey = (a: { kind: string; symbol: string }) => `${a.kind}:${a.symbol}`;
 const ySym = (a: { yahooSymbol?: string; symbol: string }) => a.yahooSymbol ?? a.symbol;
 
+/** Änderungen am Dividenden-Buch melden (für die Weitergabe an Blacktime) */
+export function subscribeBook(f: () => void): () => void {
+  subs.add(f);
+  return () => subs.delete(f);
+}
+
 export function useDividendBook(): number {
   return useSyncExternalStore(
     (f) => {

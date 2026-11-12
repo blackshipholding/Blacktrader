@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconChart, IconChevron, IconDownload, IconGear, IconShield, IconSpark } from "@/components/Icons";
 import { actions, listBackups, readBackup, useAppData } from "@/lib/store/store";
 import { downloadBackup, lastAutoBackup } from "@/lib/client/autoBackup";
+import { disableShare, enableShare, renewCode, shareCode, shareLastAt, shareOn, syncNow } from "@/lib/client/dividendShare";
 
 function Row({ href, icon, title, text }: { href: string; icon: React.ReactNode; title: string; text: string }) {
   return (
@@ -48,6 +49,8 @@ export default function MehrPage() {
         <Row href="/regelwerk" icon={<IconShield className="h-6 w-6" />} title="Regelwerk" text="Wann Blacktrader etwas ändern darf – und was nie" />
         <Row href="/einstellungen" icon={<IconGear className="h-6 w-6" />} title="Einstellungen" text="Gewichtung, Alarme, Schlüssel, Export" />
       </div>
+
+      <ShareCard />
 
       <section className="card space-y-3 p-4">
         <div className="flex items-center gap-2">
@@ -140,5 +143,75 @@ export default function MehrPage() {
         </p>
       </section>
     </div>
+  );
+}
+
+/** Buy-&-Hold-Dividenden automatisch an Blacktime weitergeben (Kopplungs-Code) */
+function ShareCard() {
+  const [on, setOn] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [at, setAt] = useState<number | null>(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    setOn(shareOn());
+    setCode(shareCode());
+    setAt(shareLastAt());
+  }, []);
+  return (
+    <section className="card space-y-3 p-4">
+      <h2 className="text-[17px] text-gold-light">Dividenden an Blacktime senden</h2>
+      <p className="text-[15px] text-stone-300">Bei jeder Änderung deiner Buy-&-Hold-Dividenden (Datum, Aktie, Betrag brutto/netto) geht die Liste automatisch an Blacktime. Sonst wird nichts gesendet.</p>
+      <label className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl bg-white/5 px-3 text-[15px] text-stone-200">
+        <span>
+          Automatisch senden
+          <span className="block text-[13px] text-stone-400">Zuletzt: {at ? new Date(at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</span>
+        </span>
+        <input
+          type="checkbox"
+          className="h-6 w-6 accent-[#C9A24A]"
+          checked={on}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setCode(enableShare());
+              setOn(true);
+            } else {
+              disableShare();
+              setOn(false);
+            }
+          }}
+        />
+      </label>
+      {on && code && (
+        <>
+          <div className="rounded-xl bg-white/5 px-3 py-2 text-[14px] text-stone-300">
+            Dein Kopplungs-Code für Blacktime (nur du kennst ihn):
+            <div className="num mt-1 break-all text-[16px] font-semibold text-stone-50 select-all">{code}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                const ok = await syncNow();
+                setAt(shareLastAt());
+                setMsg(ok ? "Gesendet." : "Senden hat nicht geklappt – später noch einmal versuchen.");
+              }}
+            >
+              Jetzt senden
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                if (!window.confirm("Neuen Code erzeugen? Blacktime braucht dann den neuen Code.")) return;
+                setCode(renewCode());
+                setMsg("Neuer Code erzeugt.");
+              }}
+            >
+              Neuer Code
+            </button>
+          </div>
+        </>
+      )}
+      {msg && <p className="text-[14px] text-stone-300">{msg}</p>}
+    </section>
   );
 }

@@ -3,6 +3,7 @@
 // Signal-Alarme und automatische Verfolgung offener Papier-Trades.
 import { checkWatchZones } from "./zoneAlert";
 import { startAutoBackup } from "./autoBackup";
+import { startShare } from "./dividendShare";
 import { brokerStop } from "./brokerStop";
 import { exhaustionAt, rsi } from "../analysis/indicators";
 import { resumeTraining } from "./trainingSession";
@@ -141,6 +142,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => startAutoBackup(), []);
+  useEffect(() => startShare(), []);
 
   useEffect(() => {
     void refreshTrainerParams();
