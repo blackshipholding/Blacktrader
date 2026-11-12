@@ -2,6 +2,7 @@
 // Client-Wrapper für die eigenen API-Routen (inkl. optionaler Nutzer-Keys als Header).
 import type { Candle, Fundamentals, Interval, NewsItem, Quote, ResolvedAsset } from "../types";
 import { getData } from "../store/store";
+import { cacheGet, cacheSet } from "./candleCache";
 
 function keyHeaders(): Record<string, string> {
   const k = getData().settings.keys;
@@ -41,9 +42,19 @@ function memoized<T>(key: string, ttl: number, fn: () => Promise<T>): Promise<T>
 export const api = {
   resolve: (q: string) => get<{ candidates: ResolvedAsset[] }>(`/api/resolve?${qs({ q })}`, true),
   candles: (a: Instrument, interval: Interval, ttl = 30e3) =>
-    memoized(`c:${a.binanceSymbol}:${a.yahooSymbol}:${interval}`, ttl, () =>
-      get<{ candles: Candle[]; source: string; delayed: boolean; currency?: string }>(`/api/candles?${qs({ binance: a.binanceSymbol, yahoo: a.yahooSymbol, interval })}`),
-    ),
+    memoized(`c:${a.binanceSymbol}:${a.yahooSymbol}:${interval}`, ttl, async () => {
+      type R = { candles: Candle[]; source: string; delayed: boolean; currency?: string };
+      // Suche (ttl ≥ 60 s) mit Tages-/Wochenkerzen: bis 15 Minuten alte, vollständige Antwort aus dem Zwischenspeicher
+      const cacheable = ttl >= 60e3 && (interval === "1d" || interval === "1w");
+      const ck = `c:${a.binanceSymbol ?? ""}:${a.yahooSymbol ?? ""}:${interval}`;
+      if (cacheable) {
+        const hit = await cacheGet<R>(ck);
+        if (hit && hit.candles?.length) return hit;
+      }
+      const r = await get<R>(`/api/candles?${qs({ binance: a.binanceSymbol, yahoo: a.yahooSymbol, interval })}`);
+      if (cacheable && r.candles?.length) void cacheSet(ck, r);
+      return r;
+    }),
   quote: (a: Instrument) => get<Quote>(`/api/quote?${qs({ binance: a.binanceSymbol, yahoo: a.yahooSymbol })}`),
   fundamentals: (a: Instrument) =>
     memoized(`f:${a.kind}:${a.yahooSymbol}:${a.coingeckoId}`, 3600e3, () =>

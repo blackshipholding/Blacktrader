@@ -9,8 +9,8 @@ const LINE = { trade: "#34d399", short: "#f87171", core: "#38bdf8" };
 
 export function ZoneHistoryChart({ candles, zones, height = 200 }: { candles: Candle[]; zones: EchoZone[]; height?: number }) {
   if (candles.length < 5) return null;
-  const every = Math.max(1, Math.ceil(candles.length / 320));
-  const data = candles.filter((_, i) => i % every === 0 || i === candles.length - 1);
+  // Alle Kerzen zeichnen (nichts überspringen)
+  const data = candles;
   const W = 360;
   const H = height;
   const pad = 6;

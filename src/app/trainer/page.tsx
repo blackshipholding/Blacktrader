@@ -3,7 +3,8 @@
 // tritt danach in einem Turnier gegen 9 Gegner an, die sich abwechseln: 50 Zeiträume à 5 Jahre × 5 Depotgrößen ab
 // 10.000 € (Shipmaster 0.1), in bullischen, neutralen, bärischen und gemischten Szenarien. Alle Werte werden verwendet.
 // Danach: Rangliste und wo sich Blacktrader verbessert hat.
-import { useAppData } from "@/lib/store/store";
+import { getData, useAppData } from "@/lib/store/store";
+import { downloadLearnFile } from "@/lib/client/learnData";
 import { LIVE_CHECK, liveCheck } from "@/lib/client/liveCheck";
 import { LIVE_LEARN_MIN } from "@/lib/trainer/session";
 import Link from "next/link";
@@ -289,6 +290,9 @@ export default function TrainerPage() {
             Stopp
           </button>
         )}
+        <button className="btn min-h-[48px] w-full" onClick={() => downloadLearnFile(getData())}>
+          Lerndaten herunterladen
+        </button>
         {st && (running || progress > 0) && (
           <div className="space-y-1">
             {curCell && (

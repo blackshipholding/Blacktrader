@@ -59,19 +59,23 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
   const st = statusText(t);
   const stopHint = brokerStop(t);
   const green = !isLt && t.direction === "long";
+  // Grüne Trades bedienen ihre Knöpfe in der Karte (wie Blau) – kein Wischen mehr
+  const swipe = !(green && t.status !== "closed");
   return (
     <div className="relative">
       {/* Aktionen hinter der Karte (nur beim Wischen nach links sichtbar) */}
-      <div className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-opacity ${dx < 0 ? "opacity-100" : "pointer-events-none opacity-0"}`}>
-        <button className="btn-primary" onClick={() => onAction(t)}>
-          Aktionen
-        </button>
-      </div>
+      {swipe && (
+        <div className={`absolute inset-y-0 right-0 flex items-center pr-3 transition-opacity ${dx < 0 ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+          <button className="btn-primary" onClick={() => onAction(t)}>
+            Aktionen
+          </button>
+        </div>
+      )}
       <article
         className={`card relative p-4 transition-transform ${edge}`}
         style={{ transform: `translateX(${dx}px)` }}
-        onTouchStart={(e) => (start.current = e.touches[0].clientX)}
-        onTouchMove={(e) => start.current != null && setDx(Math.min(0, Math.max(-120, e.touches[0].clientX - start.current)))}
+        onTouchStart={(e) => swipe && (start.current = e.touches[0].clientX)}
+        onTouchMove={(e) => swipe && start.current != null && setDx(Math.min(0, Math.max(-120, e.touches[0].clientX - start.current)))}
         onTouchEnd={() => {
           setDx(dx < -60 ? -120 : 0);
           start.current = null;

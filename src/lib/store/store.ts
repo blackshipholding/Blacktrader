@@ -9,6 +9,7 @@ import { tradeCurrency } from "../client/eur";
 import type { Holding, HoldingTx } from "../client/holdings";
 import type { ChanceLogEntry } from "../client/chanceLog";
 import { allHistories, restoreHistories } from "../client/entries";
+import { collectLearnData, restoreLearnData } from "../client/learnData";
 
 export interface WatchItem extends ResolvedAsset {
   id: string;
@@ -505,12 +506,14 @@ export const actions = {
     const d = getData();
     const out = includeKeys ? d : { ...d, settings: { ...d.settings, keys: { ...DEFAULT_SETTINGS.keys, llmProvider: d.settings.keys.llmProvider } } };
     // Auch den Einstiegs-Verlauf (alte/graue Einstiege) mitsichern
-    return JSON.stringify({ app: "black-ship-trading-analyst", exportedAt: new Date().toISOString(), ...out, entryHistory: allHistories() }, null, 2);
+    return JSON.stringify({ app: "black-ship-trading-analyst", exportedAt: new Date().toISOString(), ...out, entryHistory: allHistories(), learnData: collectLearnData() }, null, 2);
   },
   importJson(json: string, keepKeys = true) {
     const raw = JSON.parse(json);
     const parsed = sanitize(raw);
     if (raw && typeof raw.entryHistory === "object" && raw.entryHistory) restoreHistories(raw.entryHistory);
+    // Lerndaten (Trainer-Stand, Auswertungen, gelernter Stop, gelernte Werte) – nur in Sicherungen ab diesem Update
+    if (raw && typeof raw.learnData === "object" && raw.learnData) restoreLearnData(raw.learnData);
     update((d) => ({ ...parsed, settings: keepKeys && !parsed.settings.keys.llm && !parsed.settings.keys.finnhub ? { ...parsed.settings, keys: d.settings.keys } : parsed.settings }));
   },
   reset() {
