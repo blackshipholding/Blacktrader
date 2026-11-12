@@ -134,30 +134,15 @@ export interface YahooMeta {
 
 export async function yahooQuote(symbol: string): Promise<Quote & { meta: YahooMeta }> {
   return cached(`yq:${symbol}`, 10e3, async () => {
-    // Mit Vor- und Nachbörse (Nutzer 12.11.2026: möglichst Live-Kurs rund um die Uhr)
-    const data = await chart(symbol, "5m", "1d", true);
+    // Nur der reguläre Kurs (Nutzer 12.11.2026: US-Order läuft 15:30–22:00 Uhr, außerhalb kein Kauf/Stop)
+    const data = await chart(symbol, "5m", "1d");
     const r = data.chart.result?.[0];
     if (!r || r.meta.regularMarketPrice == null) throw new UpstreamError("Yahoo: kein Kurs", 404);
     const m = r.meta;
     const prev = m.previousClose ?? m.chartPreviousClose ?? m.regularMarketPrice!;
-    let price = m.regularMarketPrice!;
-    let time = m.regularMarketTime ?? Math.floor(Date.now() / 1000);
-    let source = "Yahoo Finance";
-    // Aktien/ETFs: letzter Kurs außerhalb der regulären Zeit (Vor-/Nachbörse), falls neuer als der reguläre
-    if ((m.instrumentType === "EQUITY" || m.instrumentType === "ETF") && r.timestamp?.length) {
-      const closes = r.indicators.quote[0]?.close ?? [];
-      for (let i = closes.length - 1; i >= 0; i--) {
-        const c = closes[i];
-        if (c != null && c > 0) {
-          if (r.timestamp[i] > time + 60) {
-            price = c;
-            time = r.timestamp[i];
-            source = "Yahoo Vor-/Nachbörse";
-          }
-          break;
-        }
-      }
-    }
+    const price = m.regularMarketPrice!;
+    const time = m.regularMarketTime ?? Math.floor(Date.now() / 1000);
+    const source = "Yahoo Finance";
     return {
       symbol,
       price,

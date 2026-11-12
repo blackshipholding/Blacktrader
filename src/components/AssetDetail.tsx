@@ -2,7 +2,6 @@
 // Detailansicht eines Werts (als Bottom-Sheet oder eigene Seite): großer Chart mit Wellenzählung und
 // Fibo-Zonen, Signal mit Teil-Scores, Langfristiger Einstieg, Begründung, Fundamentalzahlen, News.
 import { displayCurrency } from "@/lib/client/eur";
-import { useEuroNative } from "@/lib/client/euroPrice";
 import { effectiveWeights, learnedParams, useTrainerVersion } from "@/lib/client/trainerParams";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -145,7 +144,6 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes
   const allTrades = useAppData((d) => d.trades);
   const buys = useMemo(() => allTrades.filter((t) => t.strategy === "longterm" && t.status !== "closed" && t.symbol === asset.symbol && t.lt).sort((a, b) => a.openedAt - b.openedAt), [allTrades, asset.symbol]);
   const currency = displayCurrency(asset, live?.currency ?? asset.currency);
-  const euroLive = useEuroNative(asset, live?.currency ?? asset.currency ?? analysisCurrencyGuess(asset), live?.price == null);
   const trainerV = useTrainerVersion();
   const analysis = useMemo(
     () =>
@@ -240,7 +238,7 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes
             {asset.exchange ? ` · ${asset.exchange}` : ""}
           </div>
           {/* Mit Einstiegs-Kachel darüber steht der Live-Kurs nur dort (Nutzer 12.11.2026: ein Kurs) */}
-          {!hideTake && <div className="num text-[24px] font-semibold text-stone-50">{live?.price != null ? money(live.price, currency) : euroLive != null ? money(euroLive, currency) : analysis ? money(analysis.price, currency) : "–"}</div>}
+          {!hideTake && <div className="num text-[24px] font-semibold text-stone-50">{live?.price != null ? money(live.price, currency) : analysis ? money(analysis.price, currency) : "–"}</div>}
           <div className="flex items-center gap-2">
             {live?.changePct != null && <span className={`num text-[15px] ${live.changePct >= 0 ? "text-up" : "text-down"}`}>{`${live.changePct >= 0 ? "+" : ""}${live.changePct.toFixed(2).replace(".", ",")} %`}</span>}
             {/* Werte außerhalb von Watchlist/Depot haben keinen Live-Kurs – dann Status der geladenen Kerzen statt ewig „Lädt“ */}

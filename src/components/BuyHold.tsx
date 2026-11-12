@@ -8,7 +8,6 @@ import type { ReasonNote } from "./AssetDetail";
 import { useEffect, useMemo, useState } from "react";
 import { AddAsset } from "./AddAsset";
 import { Sheet } from "./Sheet";
-import { euroQuote } from "@/lib/client/euroPrice";
 import { displayCurrency } from "@/lib/client/eur";
 import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
@@ -45,9 +44,7 @@ function usePrices(holdings: Holding[]) {
       for (const h of holdings) {
         try {
           const q = await api.quote(h);
-          // EIN Euro-Live-Kurs für die ganze App (deutsche Börse / Binance EUR); sonst umgerechnet
-          const eu = await euroQuote(h, q.currency ?? h.currency).catch(() => null);
-          const p = eu ? eu.eur : toEur(q.price, q.currency ?? h.currency) ?? q.price;
+          const p = toEur(q.price, q.currency ?? h.currency) ?? q.price;
           if (alive && p > 0) setPrices((x) => ({ ...x, [h.id]: p }));
         } catch {
           /* Kurs gerade nicht erreichbar */
