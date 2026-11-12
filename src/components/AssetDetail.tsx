@@ -34,7 +34,9 @@ type DetailAsset = ResolvedAsset & { id?: string };
  * (Aktien und Krypto nie kurzfristig).
  */
 /** `hideTake`: oben steht schon die Kachel mit „übernehmen“ – unten keinen zweiten Knopf zeigen */
-export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { asset: DetailAsset; initialHorizon?: Horizon; hideTake?: boolean }) {
+export type ReasonNote = { text: string; tone: "red" | "blue" };
+
+export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes }: { asset: DetailAsset; initialHorizon?: Horizon; hideTake?: boolean; notes?: ReasonNote[] }) {
   const settings = useAppData((d) => d.settings);
   const live = useLive(asset);
   const scan = useScan();
@@ -286,6 +288,12 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { a
               Langfristig übernehmen
             </button>
           )}
+          {/* Buy & Hold: Hinweise zur Position stehen in der Begründung, nicht auf der Karte (Nutzer 12.11.2026) */}
+          {notes?.map((n, i) => (
+            <p key={i} className={`rounded-xl px-3 py-2 text-[14px] ${n.tone === "red" ? "bg-red-500/15 text-red-200" : "bg-sky-500/10 text-sky-200"}`}>
+              {n.text}
+            </p>
+          ))}
           {showTradePlan && <Commentary a={analysis} item={asset} main={mainColor === "gruen" || mainColor === "rot" || mainColor === "gelb" ? mainColor : undefined} waitText={best?.best.waitFor ?? best?.best.reason} />}
           <FundamentalsPanel a={analysis} f={fundamentals} note={fundNote} kind={asset.kind} />
           <NewsPanel news={news} score={analysis.fundamental.newsScore} />

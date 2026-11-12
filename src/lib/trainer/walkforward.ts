@@ -109,12 +109,13 @@ export function regionMetrics(st: WFState, key: string, reg: Region): Metrics | 
       b = reg.k >= st.folds ? inf.bounds[st.folds] : inf.bounds[reg.k];
       run.ex.forEach((x, i) => x < b && run.en[i] >= a && trades.push({ returnPct: run.r[i], exitTime: x }));
       // Lerndaten: nur Zonen, deren Ergebnis vor dem Prüfbeginn feststand
-      run.za?.forEach((x, i) => x < b && run.zt![i] >= a && zones.push(run.zo![i]));
+      // Nur Kauf-Zonen (Blacktrader handelt keine Shorts – Nutzer 12.11.2026)
+      run.za?.forEach((x, i) => x < b && run.zt![i] >= a && run.zd?.[i] !== -1 && zones.push(run.zo![i]));
     } else {
       a = inf.bounds[reg.k];
       b = inf.bounds[reg.k + 1];
       run.en.forEach((x, i) => x >= a && x < b && trades.push({ returnPct: run.r[i], exitTime: run.ex[i] }));
-      run.zt?.forEach((x, i) => x >= a && x < b && zones.push(run.zo![i]));
+      run.zt?.forEach((x, i) => x >= a && x < b && run.zd?.[i] !== -1 && zones.push(run.zo![i]));
     }
     months += Math.max(0, b - a) / MONTH;
   }
@@ -136,7 +137,7 @@ export function oosMetrics(st: WFState, keys: string[]): Metrics | null {
       const a = inf.bounds[k];
       const b = inf.bounds[k + 1];
       run.en.forEach((x, i) => x >= a && x < b && trades.push({ returnPct: run.r[i], exitTime: run.ex[i] }));
-      run.zt?.forEach((x, i) => x >= a && x < b && zones.push(run.zo![i]));
+      run.zt?.forEach((x, i) => x >= a && x < b && run.zd?.[i] !== -1 && zones.push(run.zo![i]));
       months += (b - a) / MONTH;
     }
   }

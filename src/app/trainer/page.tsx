@@ -137,7 +137,16 @@ function ScenarioTable({ rep }: { rep: TournamentReport }) {
 export default function TrainerPage() {
   const cells = useTrainerCells();
   const t = useTraining();
-  const [dur, setDur] = useState(DURATIONS[0].ms);
+  const [dur, setDurState] = useState(DURATIONS[0].ms);
+  // Gewählte Lernzeit merken (Nutzer 12.11.2026: sprang nach dem Öffnen auf 30 Min zurück)
+  const setDur = (ms: number) => {
+    setDurState(ms);
+    try {
+      localStorage.setItem("bt-train-dur", String(ms));
+    } catch {
+      /* ohne Speicher */
+    }
+  };
   const [token, setToken] = useState("");
   const [hasToken, setHasToken] = useState(true);
   const [adminRequired, setAdminRequired] = useState(false);
@@ -146,6 +155,12 @@ export default function TrainerPage() {
   const [blue, setBlue] = useState<{ rate: number | null; n: number }>({ rate: null, n: 0 });
 
   useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem("bt-train-dur"));
+      if (DURATIONS.some((d) => d.ms === v)) setDurState(v);
+    } catch {
+      /* ohne Speicher */
+    }
     void refreshTrainerParams(true);
     void loadReports();
     setBlue(blueRate());
@@ -238,11 +253,13 @@ export default function TrainerPage() {
               <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
               Blau · Langfristig
             </span>
-            <span className="num text-right text-stone-100">{blue.rate != null ? `${pct(blue.rate)} (${blue.n})` : "noch keine"}</span>
+            <span className="num text-right text-stone-100">
+              {blue.rate != null ? `${pct(blue.rate)} (${blue.n})` : t.reports[0]?.blueQuote ? `${pct(t.reports[0].blueQuote.rate)} (${t.reports[0].blueQuote.n} Rechnung Vergangenheit)` : "noch keine"}
+            </span>
           </div>
           {info && (
             <p className="border-t border-white/5 py-1.5 text-[13px] text-stone-400">
-              Zonen-Quote wie HKCM: Kurs taucht in die Zone ein, dreht vor der Unterkante und läuft oben heraus. Grün = gemessen auf gesperrten Testdaten aller Werte. Blau = deine langfristigen Einstiege im Verlauf (erledigt gegen ungültig). Gelb zählt nicht.
+              Zonen-Quote wie HKCM: Kurs taucht in die Zone ein, dreht vor der Unterkante und läuft oben heraus. Grün = gemessen auf gesperrten Testdaten aller Werte. Blau = deine langfristigen Einstiege im Verlauf (erledigt gegen ungültig); gibt es noch keine, steht die Quote aus der Rechnung über die Vergangenheit (alle Werte, Teil für Teil wie im Depot). Gelb zählt nicht.
             </p>
           )}
         </div>
@@ -288,6 +305,11 @@ export default function TrainerPage() {
               <span>{running ? (learning ? `Lernzeit ${mins(st.cfg.durationMs - st.elapsedMs)}` : inTournament ? "Turnier läuft" : mins(st.cfg.durationMs - st.elapsedMs)) : st.status === "stopped" ? "gestoppt" : "fertig"}</span>
             </div>
             {st.tournament?.failed && <p className="text-[14px] text-amber-300">{st.tournament.failed}</p>}
+            {!running && st.status === "done" && st.elapsedMs < st.cfg.durationMs - 60e3 && (
+              <p className="text-[13px] text-stone-400">
+                Nach {mins(st.elapsedMs)} fertig – die Suche war abgeschlossen. Die gewählte Zeit ({DURATIONS.find((d) => d.ms === st.cfg.durationMs)?.label ?? mins(st.cfg.durationMs)}) ist ein Höchstwert, kein Muss.
+              </p>
+            )}
           </div>
         )}
         {st && saves.length > 0 && (

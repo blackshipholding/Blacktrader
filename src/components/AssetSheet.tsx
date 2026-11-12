@@ -3,10 +3,10 @@ import { useState } from "react";
 import { useScan, type ScanEntry } from "@/lib/client/scanner";
 import type { Horizon, ResolvedAsset } from "@/lib/types";
 import { AssetCard } from "./AssetCard";
-import { AssetDetailView } from "./AssetDetail";
+import { AssetDetailView, type ReasonNote } from "./AssetDetail";
 import { Sheet } from "./Sheet";
 
-type Target = { asset: ResolvedAsset & { id?: string }; horizon?: Horizon; withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; onRemove?: () => void } | null;
+type Target = { asset: ResolvedAsset & { id?: string }; horizon?: Horizon; withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; notes?: ReasonNote[]; onRemove?: () => void } | null;
 
 /** Einstieg von Blacktrader für einen Wert (aus der laufenden Suche) */
 function useEntry(asset?: ResolvedAsset): ScanEntry | undefined {
@@ -36,7 +36,7 @@ function Body({ target, close }: { target: NonNullable<Target>; close: () => voi
           }
         />
       )}
-      <AssetDetailView key={`${target.asset.kind}:${target.asset.symbol}:${target.horizon}`} asset={target.asset} initialHorizon={target.horizon} hideTake={!!target.withEntry} />
+      <AssetDetailView key={`${target.asset.kind}:${target.asset.symbol}:${target.horizon}`} asset={target.asset} initialHorizon={target.horizon} hideTake={!!target.withEntry} notes={target.notes} />
     </div>
   );
 }
@@ -50,7 +50,7 @@ export function useAssetSheet() {
     </Sheet>
   );
   return {
-    open: (asset: ResolvedAsset & { id?: string }, horizon?: Horizon, o: { withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; onRemove?: () => void } = {}) => setTarget({ asset, horizon, ...o }),
+    open: (asset: ResolvedAsset & { id?: string }, horizon?: Horizon, o: { withEntry?: boolean; tipOnly?: boolean; fromDepot?: boolean; notes?: ReasonNote[]; onRemove?: () => void } = {}) => setTarget({ asset, horizon, ...o }),
     sheet,
   };
 }

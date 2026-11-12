@@ -321,6 +321,13 @@ Getestet (Härtetest, 191 Werte, 1963–2026, 10 Mio. Durchgänge à 5 Jahre, 8.
 
 Ändert sich die Wellenzählung einer blauen Position, verkauft Blacktrader im Depot nicht mehr selbst. Er zeigt einen **Vorschlag** als Order-Zettel für flatex (z. B. „Verkauf 5 Stück (bestens) · Stop-Loss für die restlichen 5 Stück: 44,10 € · wartende Kauf-Order 41,83 € löschen“) mit **„Bei flatex erledigt“** (Verkaufskurs in € eintragen, dann wird gebucht) und **„Ablehnen“** (Position bleibt, Meldung kommt nicht wieder). Läge ein neuer Stop nicht mindestens 0,5 % unter dem Kurs, wäre er bei flatex nicht möglich – dann lautet der Vorschlag „jetzt verkaufen“. Automatisch passiert nur, was flatex auch automatisch macht: wartende Limit-Kauforders (Teile) und ein bestätigter Stop-Loss. Unbestätigte Vorschläge werden nach 20 Stunden noch einmal gemeldet. Push bei geschlossener App: einmal täglich (Vercel-Cron 14:43 UTC); mit offener App alle 15 Minuten. Live-Bilanz und Turnier rechnen weiter mit Blacktraders eigenen Regeln.
 
+## Update 12.11.2026 (Trainer realistisch, lernbarer Stop, Buy & Hold, Korrekturen)
+
+- **Trainer realistisch (Grün und Blau):** Blau wird Teil für Teil gerechnet (`PoolTrade.legs`, `cancelAt`; `runWindow`): nur gekaufte Teile bringen Gewinn/Verlust, wartende Teile blockieren Geld bis zum Ende oder bis der Stop sie löscht, jede Order kostet ihre Gebühr, ein Verkauf eine Gebühr. Gilt für Turnier, Härtetest (B8) und die Auswertung. Blau-Quote aus der Rechnung über die Vergangenheit steht im Trainer, wenn es noch keine eigene Historie gibt.
+- **Lernbarer Stop (Shipmaster 0.2):** `StopParams` (Auslöser, Nachzieh-Fenster in Wochenkerzen, Mindestschritt), enger Rahmen `STOP_RANGE`; Stop startet auf der Oberkante, nie darunter. Training: `tuneStop` (nur nach bestandener B8), gespeichert in `stopParams.ts`. Live: `shipmasterTrail` – höchstens einmal je fertiger Wochenkerze, als Vorschlag. Standard ohne gelernten Wert: Nachziehen aus.
+- **Buy & Hold:** eine Karte pro Kauf (`EntryTile` mit `position`); Hinweise (großer Trend fällt, Shipmaster-Tipp) in der Detailansicht unter der Begründung.
+- **Korrekturen:** Lernzeit wird gemerkt und es gibt einen Hinweis bei frühem Ende; die Grün-Quote zählt nur Kauf-Zonen; Depot-Kontostand mit der Zeile „frei + gebunden + offene Gewinne/Verluste“; App-Symbole mit schwarzem Hintergrund.
+
 ## Shipmaster 0.2 – Gewinn-Schutz für Blau (11.11.2026)
 
 Zusatz zu Shipmaster 0.1 (alles andere bleibt: 10 % vom Kontostand je Kauf, Nachkauf nur Blau 2 × 2 %, keine Shorts, ab 10.000 €).

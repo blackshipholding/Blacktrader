@@ -16,7 +16,18 @@ import { GAUGE_PREFIX, NeutralGauge, scoreOf } from "./NeutralGauge";
 const EDGE = { blau: "edge-core", gruen: "edge-trade", rot: "edge-short", gelb: "edge-wait" } as const;
 const BADGE = { blau: "badge-core", gruen: "badge-trade", rot: "badge-short", gelb: "badge-wait" } as const;
 
-export function EntryTile({ asset, entry, price, changePct, status, source, chart = false, showChance = false, onOpen }: { asset: ResolvedAsset; entry?: ScanEntry; price?: number; changePct?: number; status?: LiveStatus; source?: string; chart?: boolean; showChance?: boolean; onOpen: () => void }) {
+/** Buy & Hold: deine Position steckt in derselben Karte (eine Karte pro Kauf statt zwei) */
+export interface TilePosition {
+  qty: number;
+  avg: number;
+  value: number | null;
+  open: number | null;
+  openPct: number | null;
+  onOpenPosition: () => void;
+}
+const eurT = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+export function EntryTile({ asset, entry, price, changePct, status, source, chart = false, showChance = false, position, onOpen }: { asset: ResolvedAsset; entry?: ScanEntry; price?: number; changePct?: number; status?: LiveStatus; source?: string; chart?: boolean; showChance?: boolean; position?: TilePosition; onOpen: () => void }) {
   const b = entry?.best;
   const cur = displayCurrency(asset, asset.currency ?? entry?.asset.currency);
   const p = price ?? (entry ? lastPrice(entry) : undefined);
@@ -42,18 +53,30 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
   })();
   const lt = view?.longterm ?? null;
 
-  return (
-    <button onClick={onOpen} className={`card w-full p-3.5 text-left ${b ? EDGE[b.color] : ""}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-[16px] font-semibold text-stone-50">{asset.name}</div>
-          <div className="text-[13px] text-stone-400">
-            {asset.symbol}
-            {p != null ? ` · ${money(p, cur)}` : ""}
-            {changePct != null && <span className={changePct >= 0 ? "text-up" : "text-down"}>{` ${changePct >= 0 ? "+" : ""}${changePct.toFixed(2).replace(".", ",")} %`}</span>}
+  // Mit Position (Buy & Hold) ist die Karte ein Container: oben deine Position (Antippen → Kauf/Verkauf), darunter die Analyse
+  const Root = (position ? "div" : "button") as "button";
+  const head = (
+    <>
+      <div className="min-w-0">
+        <div className="truncate text-[16px] font-semibold text-stone-50">{asset.name}</div>
+        <div className="text-[13px] text-stone-400">
+          {asset.symbol}
+          {position ? ` · ${position.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück · Ø ${eurT(position.avg)}` : p != null ? ` · ${money(p, cur)}` : ""}
+          {!position && changePct != null && <span className={changePct >= 0 ? "text-up" : "text-down"}>{` ${changePct >= 0 ? "+" : ""}${changePct.toFixed(2).replace(".", ",")} %`}</span>}
+        </div>
+      </div>
+      {position && (
+        <div className="shrink-0 text-right">
+          <div className="num text-[17px] font-semibold text-stone-50">{position.value != null ? eurT(position.value) : "–"}</div>
+          <div className={`num text-[14px] ${position.open == null ? "text-stone-400" : position.open >= 0 ? "text-up" : "text-down"}`}>
+            {position.open == null ? "Kurs lädt …" : `${eurT(position.open, true)} (${position.openPct != null ? `${position.openPct >= 0 ? "+" : ""}${position.openPct.toFixed(2).replace(".", ",")} %` : "–"})`}
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+      )}
+    </>
+  );
+  const badges = (
+        <div className={position ? "flex flex-wrap items-center gap-x-3 gap-y-1" : "flex shrink-0 flex-col items-end gap-1"}>
           {b ? (
             <span className={BADGE[b.color]}>
               {COLOR_LABEL[b.color]}
@@ -67,7 +90,26 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
           {status && !b && <StatusPill status={status} source={source} />}
           {entry?.financeWeak && <span className="text-[13px] font-semibold text-red-300">Finanzen schwach</span>}
         </div>
+  );
+  return (
+    <Root onClick={onOpen} className={`card w-full p-3.5 text-left ${position ? "cursor-pointer" : ""} ${b ? EDGE[b.color] : ""}`}>
+      <div className="flex items-start justify-between gap-2">
+        {position ? (
+          <button
+            className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
+            onClick={(e) => {
+              e.stopPropagation();
+              position.onOpenPosition();
+            }}
+          >
+            {head}
+          </button>
+        ) : (
+          head
+        )}
+        {!position && badges}
       </div>
+      {position && <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">{badges}</div>}
 
       {chart && view && view.candles.length > 4 && (
         <div className="mt-2">
@@ -97,6 +139,6 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
           </span>
         </div>
       ) : null}
-    </button>
+    </Root>
   );
 }

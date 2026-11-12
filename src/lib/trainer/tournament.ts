@@ -35,6 +35,10 @@ export interface PoolTrade {
   /** Abstand Einstieg–Stop bzw. Einstieg–Ziel in % (nur Blacktrader, für die Chancen-Regeln) */
   riskPct?: number;
   chancePct?: number;
+  /** Nur Blau: die einzelnen gekauften Teile (Zeit, Preis in Euro) – Teil-für-Teil-Rechnung wie im echten Depot */
+  legs?: { t: number; p: number }[];
+  /** Nur Blau: ab hier wartende Teile gelöscht (Shipmaster 0.2) – reserviertes Geld wird frei */
+  cancelAt?: number;
   /** Nur Blacktrader: von der Blau-Regel ausgeschlossen (wird nur zur Kontrolle „ohne Blau-Regel“ gespielt) */
   blueRuleOut?: boolean;
 }
@@ -126,7 +130,7 @@ const yearOf = (t: number) => new Date(t * 1000).getUTCFullYear();
  * Spielt die Trades eines Teilnehmers im Zeitraum chronologisch durch.
  * `priceAt(sym, t)` liefert den letzten Schlusskurs bis t (für offene Positionen am Ende).
  */
-type Ev = { t: number; kind: 0 | 1; i: number };
+type Ev = { t: number; kind: 0 | 1 | 2; i: number };
 /** Trades und Reihenfolge der Ereignisse eines Zeitraums – gleich für alle Depotgrößen (einmal rechnen, oft spielen) */
 export interface PreparedWindow {
   trades: PoolTrade[];
@@ -138,6 +142,7 @@ export function prepareWindow(pool: PoolTrade[], w: Window): PreparedWindow {
   trades.forEach((p, i) => {
     ev.push({ t: p.entry, kind: 1, i });
     if (p.exit <= w.to) ev.push({ t: p.exit, kind: 0, i });
+    if (p.legs && p.cancelAt != null && p.cancelAt > p.entry && p.cancelAt < Math.min(p.exit, w.to)) ev.push({ t: p.cancelAt, kind: 2, i });
   });
   // Ausstiege vor Einstiegen am selben Tag; sonst nach Zeit und Wert (eindeutig, für alle gleich)
   ev.sort((a, b) => a.t - b.t || a.kind - b.kind || (trades[a.i].sym < trades[b.i].sym ? -1 : trades[a.i].sym > trades[b.i].sym ? 1 : 0));
@@ -152,7 +157,9 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
   const { trades, ev } = prepared ?? prepareWindow(pool, w);
   let cash: number = cap;
   let invested = 0;
-  const open = new Map<number, number>(); // Trade-Index → Einsatz
+  const open = new Map<number, number>(); // Trade-Index → Einsatz (bei Blau mit Teilen: gekauft + reserviert)
+  const part = new Map<number, number>(); // Blau mit Teilen: Betrag je Teil
+  const legsOf = new Map<number, { t: number; p: number }[]>(); // Blau: wirklich gekaufte Teile
   const perSym = new Map<string, number>(); // offene Positionen je Wert (1 + Nachkäufe)
   const kest = new KestYear(RULES.tax);
   let tax = 0;
@@ -161,24 +168,48 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
   let wins = 0;
   let low: number = cash;
   let broke = false;
-  const close = (i: number, r: number, t: number) => {
+  const close = (i: number, r: number, t: number, exitPx?: number) => {
     const stake = open.get(i)!;
-    // KESt auf den Kursgewinn – Spesen sind in Österreich steuerlich nicht abzugsfähig
-    const g = (stake * adj(r)) / 100;
-    cash += stake + g - FEE;
-    fees += FEE;
+    // Blau mit Teilen: Gewinn je gekauftem Teil vom eigenen Preis; jeder gekaufte Teil kostet eine Kauf-Gebühr (die erste ist schon bezahlt),
+    // der Verkauf EINE Gebühr; nicht gekaufte Teile geben das reservierte Geld frei
+    const lg = legsOf.get(i);
+    let g: number;
+    let buyFees = 0;
+    if (lg && part.has(i) && exitPx != null) {
+      g = lg.reduce((a, l) => a + (part.get(i)! * adj((exitPx / l.p - 1) * 100)) / 100, 0);
+      buyFees = (lg.length - 1) * FEE;
+    } else {
+      // KESt auf den Kursgewinn – Spesen sind in Österreich steuerlich nicht abzugsfähig
+      g = (stake * adj(r)) / 100;
+    }
+    cash += stake + g - FEE - buyFees;
+    fees += FEE + buyFees;
     invested -= stake;
-    if (g - 2 * FEE > 0) wins++;
+    if (g - (2 + (lg ? lg.length - 1 : 0)) * FEE > 0) wins++;
     // sofort bei Gewinn, Verlusttopf im Kalenderjahr (analysis/kest.ts)
     const k = kest.settle(g, yearOf(t));
     cash -= k;
     tax += k;
     open.delete(i);
+    part.delete(i);
+    legsOf.delete(i);
     perSym.set(trades[i].sym, (perSym.get(trades[i].sym) ?? 1) - 1);
   };
   for (const e of ev) {
     if (e.kind === 0) {
-      if (open.has(e.i)) close(e.i, trades[e.i].r, e.t);
+      const p = trades[e.i];
+      if (open.has(e.i)) close(e.i, p.r, e.t, p.px != null ? p.px * (1 + p.r / 100) : undefined);
+    } else if (e.kind === 2) {
+      // wartende Teile gelöscht (Stop gesetzt): reserviertes Geld wird frei
+      const lg = legsOf.get(e.i);
+      if (open.has(e.i) && lg && part.has(e.i)) {
+        const free = open.get(e.i)! - lg.filter((l) => l.t <= e.t).length * part.get(e.i)!;
+        if (free > 1e-9) {
+          open.set(e.i, open.get(e.i)! - free);
+          cash += free;
+          invested -= free;
+        }
+      }
     } else if (!broke) {
       const p = trades[e.i];
       // Je Wert eine Position; Nachkauf nur bei Blau (höchstens addMax × 2 %); Beträge vom Kontostand (Shipmaster 0.1)
@@ -194,6 +225,17 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
       fees += FEE;
       invested += stake;
       open.set(e.i, stake);
+      // Blau mit Teilen: 1. Kauf = 3 Teile (je ein Drittel, wartende Teile reservieren das Geld); Nachkauf = eine Order
+      if (p.legs?.length) {
+        const lg = p.legs.filter((l) => l.t <= w.to);
+        if (have === 0) {
+          part.set(e.i, stake / 3);
+          legsOf.set(e.i, lg);
+        } else {
+          part.set(e.i, stake);
+          legsOf.set(e.i, lg.slice(0, 1));
+        }
+      }
       perSym.set(p.sym, have + 1);
       taken++;
     }
@@ -203,7 +245,7 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
   for (const i of [...open.keys()]) {
     const p = trades[i];
     const now = priceAt(p.sym, w.to);
-    close(i, now && p.px ? (p.short ? (1 - now / p.px) * 100 : (now / p.px - 1) * 100) : 0, w.to);
+    close(i, now && p.px ? (p.short ? (1 - now / p.px) * 100 : (now / p.px - 1) * 100) : 0, w.to, now ?? undefined);
   }
   if (cash < shipAdd(cash) + FEE) broke = true;
   return { end: cash, profit: cash - cap, tax, fees, trades: taken, wins, low: Math.min(low, cash), broke, cap };
@@ -358,6 +400,8 @@ export interface TournamentReport {
   b7?: { checked: number; rejected: number; notes: string[] };
   /** Härtetest (B8) mit dem Endstand: Kunden zum Lernen und gesperrte letzte 2 Jahre (Schlusskontrolle) */
   hardtest?: { customers: number; learn: { avg: number; lossShare: number; worst5: number; bear: number }; locked: { avg: number; lossShare: number; n: number } | null } | null;
+  /** Blau aus der Rechnung über die Vergangenheit (alle Werte, abgeschlossene blaue Käufe im Gewinn): Quote und Anzahl */
+  blueQuote?: { rate: number; n: number } | null;
   note?: string;
 }
 

@@ -89,6 +89,8 @@ export interface Trade {
   remaining?: number;
   /** Letzte Meldung von Blacktrader zu dieser Position (wird nur einmal gesendet) */
   lastActionKey?: string;
+  /** Shipmaster 0.2: Zeit der zuletzt geprüften fertigen Wochenkerze für das Nachziehen des Stops (einmal je Wochenkerze) */
+  lastTrailAt?: number;
   lastActionText?: string;
   /**
    * Vorschlag von Blacktrader zu einer Langfrist-Position (geänderte Zählung), der erst nach Bestätigung gilt –

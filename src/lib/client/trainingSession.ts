@@ -12,6 +12,8 @@ import { getData } from "../store/store";
 import type { CellOutcome, SessionState } from "../trainer/session";
 import { ACTIVE_CELL_KEYS, type CellKey } from "../trainer/universe";
 import type { TournamentReport } from "../trainer/tournament";
+import type { StopParams } from "../analysis/longterm";
+import { getStopParams, saveStopParams } from "./stopParams";
 
 const KEY = "bsh-training-session";
 const MSG_KEY = "bsh-training-messages";
@@ -156,9 +158,14 @@ function spawn(state: SessionState) {
       | { type: "improve"; id: string; cell: CellKey; result: WFResult; baseParams: LearnableParams; state: SessionState }
       | { type: "measured"; cell: CellKey; base: Metrics; baseParams: LearnableParams; state?: undefined }
       | { type: "protocol"; cell: CellKey; entries: unknown[]; state?: undefined }
-      | { type: "report"; report: TournamentReport; state?: undefined };
+      | { type: "report"; report: TournamentReport; state?: undefined }
+      | { type: "stop"; params: StopParams; state?: undefined };
     if (m.type === "report") {
       saveReport(m.report);
+      return;
+    }
+    if (m.type === "stop") {
+      saveStopParams(m.params); // gelernter Stop (nur B8-bestanden, enger Rahmen)
       return;
     }
     if (m.type === "measured") {
@@ -244,7 +251,7 @@ export async function startTraining(durationMs: number, cells: CellKey[] = [...A
   // Turnier-Gegner: jeder startet mit seinem Champion aus dem letzten Turnier
   const lastWith = view.reports.find((r) => r.opponents?.length);
   const champions = lastWith ? Object.fromEntries(lastWith.opponents!.map((o) => [o.id, o.params])) : undefined;
-  const st = newSession({ id: String(Date.now()), durationMs, cells, baseVersion: version, paramSet: params, extra, baseParams, live, champions });
+  const st = newSession({ id: String(Date.now()), durationMs, cells, baseVersion: version, paramSet: params, extra, baseParams, live, champions, stop: getStopParams() });
   write(KEY, st);
   spawn(st);
 }

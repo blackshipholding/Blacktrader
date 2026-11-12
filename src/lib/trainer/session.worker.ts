@@ -4,7 +4,7 @@ import type { AssetKind, Candle, Horizon } from "../types";
 import { primaryRate } from "./engine";
 import { runSession, checkpoint, type CellOutcome, type SessionIO, type SessionState } from "./session";
 import { cagr, RULES, type PoolTrade, type TournamentReport } from "./tournament";
-import { b7Check, blacktraderPool, buildReport, playRound, prepareTournament, type Prepared } from "./tournamentRun";
+import { b7Check, blacktraderPool, buildReport, playRound, prepareTournament, tuneStop, type Prepared } from "./tournamentRun";
 import { universe, type CellKey, type SeriesSpec } from "./universe";
 import type { AnalystEvent } from "./opponents";
 import { backtestSeries } from "./engine";
@@ -111,7 +111,7 @@ self.onmessage = async (e: MessageEvent) => {
             if (i < 0) continue;
             const slice = c.slice(Math.max(0, i - 150));
             for (const z of backtestSeries({ name: spec.symbol, kind: spec.kind, horizon: spec.horizon, interval: spec.interval, candles: slice }, p, { step: spec.step }).zones) {
-              if (z.t < start) continue;
+              if (z.t < start || z.dir === -1) continue; // nur Kauf-Zonen
               n++;
               ok += z.ok;
             }
@@ -202,10 +202,25 @@ self.onmessage = async (e: MessageEvent) => {
           rounds.push({ round: b + 1, avgPerYear: played.reduce((a, x) => a + cagr(x.r.end, x.r.cap), 0) / Math.max(1, played.length), changed });
           T(base + step, `Runde ${b + 1}/${R} gespielt`, b + 1);
         }
+        // Stop lernen (nur wenn gelernt wird): enger Rahmen, nur mit bestandener Prüfung B8
+        let stopNote = "";
+        if (!stop && pool && runs.length === prep.windows.length && st.cfg.durationMs > 0) {
+          try {
+            T(0.97, "Stop lernen");
+            const tuned = await tuneStop(prep, pool, { ...tio, onProgress: (f, t) => T(0.97 + 0.03 * f, t) }, st.cfg.stop ?? undefined);
+            if (tuned) {
+              stopNote = tuned.note;
+              postMessage({ type: "stop", params: tuned.params });
+            }
+          } catch {
+            /* Stop-Lernen ist optional */
+          }
+        }
         if (!stop && pool && runs.length === prep.windows.length) {
           const improvedCells = st.results.filter((r) => r.accept && r.base && r.cand).map((r) => ({ cell: r.cell, old: primaryRate(r.base!), neu: primaryRate(r.cand!) }));
           const report = buildReport(prep, runs, rounds, pool, improvedCells);
           if (st.b7) report.b7 = st.b7;
+          if (stopNote) report.note = `${report.note ?? ""} ${stopNote}`.trim();
           if (st.cfg.durationMs === 0) report.note = `${report.note ?? ""} Ohne Lernen gespielt.`.trim();
           postMessage({ type: "report", report });
           st.tournament = { progress: 1, text: "Auswertung fertig", done: true };

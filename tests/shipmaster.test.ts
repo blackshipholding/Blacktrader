@@ -134,3 +134,61 @@ describe("Shipmaster 0.2 – Gewinn-Schutz für Blau", () => {
     expect(on.invalidiert).toBeLessThanOrEqual(off.invalidiert);
   });
 });
+
+describe("Trainer realistisch: Blau Teil für Teil (nur gekaufte Teile bringen Gewinn, Gebühr je Teil)", () => {
+  const DAYX = 86400;
+  const w = { from: 1_000_000_000, to: 1_000_000_000 + 400 * DAYX, scenario: "bullisch" as const, cap: 10000 };
+  it("nur 1 von 3 Teilen gekauft: Gewinn nur auf ein Drittel des Betrags", async () => {
+    const { runWindow } = await import("../src/lib/trainer/tournament");
+    const t = (legs: { t: number; p: number }[]): PoolTrade[] => [{ sym: "A", entry: w.from + 10 * DAYX, exit: w.from + 100 * DAYX, r: 20, px: 100, color: "blau", legs }];
+    const one = runWindow(t([{ t: w.from + 10 * DAYX, p: 100 }]), w, () => 100);
+    // Drittel von 1.000 € = 333,33 € × 20 % = 66,67 €; 2 Gebühren 15,80 €; KESt 27,5 % von 66,67 €
+    expect(one.end).toBeCloseTo(10000 + 66.67 - 15.8 - 0.275 * 66.67, 1);
+    const three = runWindow(t([{ t: w.from + 10 * DAYX, p: 100 }, { t: w.from + 11 * DAYX, p: 100 }, { t: w.from + 12 * DAYX, p: 100 }]), w, () => 100);
+    // alle 3 Teile: 200 € Gewinn, 4 Gebühren (3 Kauf + 1 Verkauf)
+    expect(three.end).toBeCloseTo(10000 + 200 - 4 * 7.9 - 0.275 * 200, 1);
+    expect(three.end).toBeGreaterThan(one.end);
+  });
+  it("wartende Teile blockieren Geld – bis der Stop sie löscht (cancelAt)", async () => {
+    const { runWindow } = await import("../src/lib/trainer/tournament");
+    // Position A mit 1 gekauftem Teil, 2 wartend; danach Trade B für 10 % – bei 10.000 € bleibt genug Geld, bei knappem Geld nicht
+    const small = { ...w, cap: 10000 };
+    const A: PoolTrade = { sym: "A", entry: w.from + DAYX, exit: w.from + 300 * DAYX, r: 10, px: 100, color: "blau", legs: [{ t: w.from + DAYX, p: 100 }] };
+    const many: PoolTrade[] = [A, ...Array.from({ length: 12 }, (_, k) => ({ sym: `B${k}`, entry: w.from + (5 + k) * DAYX, exit: w.from + 20 * DAYX, r: 5, px: 50, color: "gruen" as const }))];
+    const withBlock = runWindow(many, small, () => 100);
+    const released = runWindow([{ ...A, cancelAt: w.from + 3 * DAYX }, ...many.slice(1)], small, () => 100);
+    expect(released.trades).toBeGreaterThanOrEqual(withBlock.trades);
+  });
+});
+
+describe("Lernbarer Stop: Untergrenze Oberkante, Wochenkerzen, Mindestschritt", () => {
+  it("trailStop: nie unter die Oberkante, nie über den Kurs, nur bei Mindestschritt, 0 = aus", async () => {
+    const { trailStop } = await import("../src/lib/analysis/longterm");
+    const p = { trailWeeks: 3, step: 0.05 };
+    expect(trailStop(100, 100, [130, 140, 150], 170, p)).toBe(130); // nachziehen auf das tiefste der 3 Tiefs
+    expect(trailStop(100, 100, [90, 80, 85], 120, p)).toBe(100); // Tiefs unter der Oberkante: Oberkante bleibt Untergrenze
+    expect(trailStop(130, 100, [100, 120, 140], 170, p)).toBe(100); // zurückschieben bis zur Oberkante, nicht tiefer
+    expect(trailStop(100, 100, [102, 103, 104], 150, p)).toBe(100); // Schritt unter 5 % → keine Verschiebung
+    expect(trailStop(100, 100, [150, 160, 170], 140, p)).toBe(100); // Kandidat nicht unter dem Kurs → keine Verschiebung
+    expect(trailStop(100, 100, [150, 160, 170], 300, { trailWeeks: 0, step: 0.05 })).toBe(100); // aus
+    expect(trailStop(100, 100, [150], 300, p)).toBe(100); // zu wenige Kerzen
+  });
+
+  it("gelernte Werte bleiben im engen Rahmen (nie extreme Stops)", async () => {
+    const { sanitizeStop } = await import("../src/lib/client/stopParams");
+    expect(sanitizeStop({ gain: 0.9, trailWeeks: 52, step: 0.5 })).toEqual({ gain: 0.3, trailWeeks: 0, step: 0.1 });
+    expect(sanitizeStop({ gain: 0.01, trailWeeks: 4, step: 0.001 })).toEqual({ gain: 0.15, trailWeeks: 4, step: 0.03 });
+    expect(sanitizeStop(null)).toEqual({ gain: 0.2, trailWeeks: 0, step: 0.05 });
+  });
+
+  it("Test-Simulation mit Nachziehen verkauft nie unter der Oberkante (außer Kurslücke) und kennt die Teile", async () => {
+    const { runLongTermEcho } = await import("../src/lib/analysis/longterm");
+    const mk = (n: number, f: (i: number) => number): Candle[] => Array.from({ length: n }, (_, i) => { const c = f(i); return { time: 1_200_000_000 + i * 7 * 86400, open: c, high: c * 1.01, low: c * 0.99, close: c, volume: 1000 }; });
+    const path = (i: number) => (i < 200 ? 100 + Math.sin(i / 6) * 3 : i < 230 ? 100 + (i - 200) * 4 : i < 245 ? 220 - (i - 230) * 6 : i < 280 ? 130 + (i - 245) * 5 : 305 - (i - 280) * 20);
+    const res = runLongTermEcho(mk(330, path), undefined, 1, 600, { gain: 0.2, trailWeeks: 3, step: 0.05 });
+    for (const t of res.trades) {
+      expect(t.legs?.length ?? 0).toBeGreaterThan(0);
+      if (t.protectedExit && t.zoneTop != null) expect(t.exit).toBeGreaterThanOrEqual(t.zoneTop * 0.9); // nie weit unter der Oberkante
+    }
+  });
+});

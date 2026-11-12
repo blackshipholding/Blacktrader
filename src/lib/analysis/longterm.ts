@@ -202,6 +202,32 @@ export function blendedReturn(entry: number, partials: { fraction: number; price
  */
 export const SHIP_PROTECT = Object.freeze({ gain: 0.2 });
 
+/**
+ * Lernbarer Stop (Nutzer 12.11.2026): Der Stop startet IMMER auf der Oberkante und liegt nie darunter. Blacktrader darf ihn
+ * nur im engen Rahmen verschieben – geprüft einmal je fertiger WOCHENKERZE, aus dem tiefsten Tief der letzten `trailWeeks`
+ * Wochenkerzen (Dochte zählen), nur bei einem Mindestschritt `step`. `trailWeeks` 0 = aus (Stop bleibt auf der Oberkante).
+ * Der Stop kann so nach oben wandern und später zur Oberkante zurückkehren, nie tiefer.
+ */
+export interface StopParams {
+  /** Auslöser: Kurs ≥ Ø Einstieg × (1 + gain) über der Oberkante */
+  gain: number;
+  /** 0 = Stop bleibt fest auf der Oberkante; sonst Fenster in Wochenkerzen für das Nachziehen */
+  trailWeeks: number;
+  /** Mindestschritt (Anteil), ab dem der Stop überhaupt verschoben wird */
+  step: number;
+}
+export const DEFAULT_STOP: StopParams = Object.freeze({ gain: SHIP_PROTECT.gain, trailWeeks: 0, step: 0.05 });
+/** Enger Rahmen, in dem Blacktrader lernen darf (nie extreme Werte) */
+export const STOP_RANGE = Object.freeze({ gain: [0.15, 0.3] as const, trailWeeks: [0, 2, 3, 4, 6, 8] as const, step: [0.03, 0.1] as const });
+
+/** Stop-Lage nach einer fertigen Wochenkerze: tiefstes Tief der letzten Kerzen, nie unter der Oberkante, nur bei Mindestschritt, unter dem Kurs */
+export function trailStop(current: number, zoneTop: number, lows: number[], price: number, p: Pick<StopParams, "trailWeeks" | "step">): number {
+  if (p.trailWeeks <= 0 || lows.length < p.trailWeeks) return current;
+  const cand = Math.max(zoneTop, Math.min(...lows.slice(-p.trailWeeks)));
+  if (Math.abs(cand - current) / current < p.step) return current;
+  return cand < price * 0.995 ? cand : current;
+}
+
 /** Shipmaster 0.2: Gewinn-Schutz fällig? (Kurs über der Oberkante und ≥ +20 % über dem Ø Einstieg) */
 export const protectDue = (price: number, avgEntry: number, zoneTop: number, gain: number = SHIP_PROTECT.gain) => avgEntry > 0 && price > zoneTop && price >= avgEntry * (1 + gain);
 
@@ -214,7 +240,7 @@ export interface LongTermEcho {
   verpasst: number;
   /** erfolgreich / (erfolgreich + invalidiert) */
   quote: number;
-  trades: { entry: number; exit: number; returnPct: number; entryTime: number; exitTime: number; result: "erfolgreich" | "invalidiert" | "offen"; invalidation?: number; target?: number; zoneTop?: number; zoneBottom?: number; key?: string; /** Shipmaster 0.2: per Stop auf der Oberkante verkauft */ protectedExit?: boolean }[];
+  trades: { entry: number; exit: number; returnPct: number; entryTime: number; exitTime: number; result: "erfolgreich" | "invalidiert" | "offen"; invalidation?: number; target?: number; zoneTop?: number; zoneBottom?: number; key?: string; /** Shipmaster 0.2: per Stop verkauft */ protectedExit?: boolean; /** gekaufte Teile: Zeit + Preis (Teil-für-Teil-Rechnung im Trainer) */ legs?: { t: number; p: number }[]; /** ab hier keine weiteren Teile mehr (Stop gesetzt, wartende Teile gelöscht) */ cancelAt?: number }[];
 }
 
 /**
@@ -224,7 +250,8 @@ export interface LongTermEcho {
  * Shipmaster 0.2 (`protect`, Standard an): ab Schlusskurs über der Oberkante und ≥ +20 % über dem Ø Einstieg liegt ab der
  * nächsten Kerze ein Stop auf der Oberkante (zum Stop, bei Kurslücke zum Eröffnungskurs); keine weiteren Teilkäufe.
  */
-export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_LONGTERM, step = 1, window = 600, protect: number | null = SHIP_PROTECT.gain): LongTermEcho {
+export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_LONGTERM, step = 1, window = 600, protect: number | null | StopParams = SHIP_PROTECT.gain): LongTermEcho {
+  const sp: StopParams | null = protect == null ? null : typeof protect === "number" ? { ...DEFAULT_STOP, gain: protect } : protect;
   const seen = new Set<string>();
   const out: LongTermEcho = { zones: 0, erfolgreich: 0, invalidiert: 0, offen: 0, verpasst: 0, quote: 0, trades: [] };
   for (let i = 150; i < candles.length; i += step) {
@@ -234,6 +261,9 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
     out.zones++;
     // Verfolgen ab Kerze i+1
     const fills: number[] = [];
+    const legs: { t: number; p: number }[] = [];
+    let stopLvl = z.zoneTop;
+    let cancelAt = 0;
     let result: "erfolgreich" | "invalidiert" | "offen" | "verpasst" = "offen";
     let exit = candles[candles.length - 1].close;
     let exitTime = candles[candles.length - 1].time;
@@ -242,14 +272,14 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
     let protectedExit = false;
     for (let j = i + 1; j < candles.length; j++) {
       const c = candles[j];
-      if (guarded && c.low <= z.zoneTop) {
+      if (guarded && c.low <= stopLvl) {
         result = "erfolgreich";
-        exit = Math.min(z.zoneTop, c.open);
+        exit = Math.min(stopLvl, c.open);
         exitTime = c.time;
         protectedExit = true;
         break;
       }
-      if (!guarded) for (const t of z.tranches) if (fills.length < 3 && c.low <= t && !fills.includes(t)) (fills.push(t), (firstTime ||= c.time));
+      if (!guarded) for (const t of z.tranches) if (fills.length < 3 && c.low <= t && !fills.includes(t)) (fills.push(t), legs.push({ t: c.time, p: t }), (firstTime ||= c.time));
       if (c.close < z.invalidation) {
         result = fills.length ? "invalidiert" : "verpasst";
         exit = c.close;
@@ -262,7 +292,9 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
         exitTime = c.time;
         break;
       }
-      if (protect != null && fills.length && !guarded && protectDue(c.close, fills.reduce((s, x) => s + x, 0) / fills.length, z.zoneTop, protect)) guarded = true;
+      if (sp && fills.length && !guarded && protectDue(c.close, fills.reduce((s, x) => s + x, 0) / fills.length, z.zoneTop, sp.gain)) (guarded = true, (cancelAt = c.time));
+      // Stop nachziehen/zurückschieben: nur mit der fertigen Wochenkerze j, gilt ab der nächsten (kein Blick in die Zukunft)
+      else if (sp && guarded) stopLvl = trailStop(stopLvl, z.zoneTop, candles.slice(Math.max(0, j - sp.trailWeeks + 1), j + 1).map((x) => x.low), c.close, sp);
     }
     if (result === "verpasst") {
       out.verpasst++;
@@ -276,7 +308,7 @@ export function runLongTermEcho(candles: Candle[], o: LongTermOptions = DEFAULT_
     const entry = fills.reduce((s, x) => s + x, 0) / fills.length;
     if (protectedExit && exit < entry) result = "invalidiert"; // Kurslücke unter den Einstieg
     out[result]++;
-    out.trades.push({ entry, exit, returnPct: ((exit - entry) / entry) * 100, entryTime: firstTime, exitTime, result, invalidation: z.invalidation, target: z.targets[0], zoneTop: z.zoneTop, zoneBottom: z.zoneBottom, key: z.key, protectedExit: protectedExit || undefined });
+    out.trades.push({ entry, exit, returnPct: ((exit - entry) / entry) * 100, entryTime: firstTime, exitTime, result, invalidation: z.invalidation, target: z.targets[0], zoneTop: z.zoneTop, zoneBottom: z.zoneBottom, key: z.key, protectedExit: protectedExit || undefined, legs, cancelAt: cancelAt || undefined });
   }
   const done = out.erfolgreich + out.invalidiert;
   out.quote = done ? out.erfolgreich / done : 0;

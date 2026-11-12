@@ -319,6 +319,10 @@ function BlacktraderDepot() {
         <div className={`num text-[16px] ${acc.profit >= 0 ? "text-up" : "text-down"}`}>
           {eur(acc.profit, true)} ({signed(acc.profitPct)}) seit Start mit {ACCOUNT.start.toLocaleString("de-DE")} €
         </div>
+        {/* Kontostand = frei + gebunden (zum Kaufpreis) + Gewinn/Verlust der offenen Positionen (Nutzer 12.11.2026: Summe ging nicht auf) */}
+        <div className="num mt-1 text-[14px] text-stone-400">
+          = frei {eur(acc.cash)} + gebunden {eur(acc.invested)} {acc.equity - acc.cash - acc.invested >= 0 ? "+" : "−"} offene Gewinne/Verluste {eur(Math.abs(acc.equity - acc.cash - acc.invested))}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Tile label="Frei verfügbar" value={eur(acc.cash)} />

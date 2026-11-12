@@ -27,6 +27,8 @@ export interface SessionConfig {
   live?: { start: number; done: number };
   /** Champions der Turnier-Gegner aus dem letzten Turnier (id → Stellschrauben) */
   champions?: Record<string, Record<string, number>>;
+  /** Bisher gelernter Stop (Shipmaster 0.2) – Ausgangspunkt fürs Weiterlernen */
+  stop?: import("../analysis/longterm").StopParams;
 }
 
 export interface CellOutcome {

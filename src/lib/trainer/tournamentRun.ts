@@ -1,7 +1,7 @@
 // Turnier rechnen (im Web Worker): Kursdaten laden, Trades aller 16 Teilnehmer erzeugen und 50 Versuche à 5 Jahre
 // in echter Zeit durchspielen. Blacktrader spielt in 5 Runden zu je 10 Versuchen; zwischen den Runden lernt er
 // (Strenge-Regeln unverändert) und spielt die nächste Runde mit seinem neuesten gespeicherten Stand.
-import { runLongTermEcho } from "../analysis/longterm";
+import { DEFAULT_STOP, runLongTermEcho, STOP_RANGE, type StopParams } from "../analysis/longterm";
 import type { LearnableParams } from "../analysis/params";
 import type { AssetKind, Candle, Horizon } from "../types";
 import { backtestSeries } from "./engine";
@@ -161,7 +161,7 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
     return r && r > 0 ? 1 / r : 1;
   };
   const toEur = (pool: PoolTrade[]): PoolTrade[] =>
-    pool.map((p) => ({ ...p, r: ((1 + p.r / 100) * (eurPer(p.sym, p.exit) / eurPer(p.sym, p.entry)) - 1) * 100, px: p.px != null ? p.px * eurPer(p.sym, p.entry) : p.px }));
+    pool.map((p) => ({ ...p, r: ((1 + p.r / 100) * (eurPer(p.sym, p.exit) / eurPer(p.sym, p.entry)) - 1) * 100, px: p.px != null ? p.px * eurPer(p.sym, p.entry) : p.px, legs: p.legs?.map((l) => ({ t: l.t, p: l.p * eurPer(p.sym, l.t) })) }));
   const priceAt = (sym: string, t: number) => {
     const c = closeAt(bySym.get(sym), t);
     return c == null ? null : c * eurPer(sym, t);
@@ -227,7 +227,7 @@ export async function blacktraderPool(prep: Prepared, params: Params, io: Tourna
           active.blau.push([t.entryTime, t.exitTime]);
           if (t.result === "offen" || t.entryTime < from) continue;
           const { riskPct, chancePct, ok } = blueTrade(t);
-          out.push({ sym: a.symbol, entry: t.entryTime, exit: t.exitTime, r: t.returnPct, px: t.entry, color: "blau", riskPct, chancePct, ...(ok ? {} : { blueRuleOut: true }) });
+          out.push({ sym: a.symbol, entry: t.entryTime, exit: t.exitTime, r: t.returnPct, px: t.entry, color: "blau", riskPct, chancePct, legs: t.legs, cancelAt: t.cancelAt, ...(ok ? {} : { blueRuleOut: true }) });
         }
       }
       for (const { src, t } of cand) {
@@ -245,6 +245,67 @@ export async function blacktraderPool(prep: Prepared, params: Params, io: Tourna
     await tick();
   }
   return prep.toEur(out);
+}
+
+/** Blaue Trades eines Stop-Stands (nur Wochenkerzen, nur Blau – der Rest des Pools bleibt) */
+export async function bluePoolFor(prep: Prepared, stop: StopParams, io: TournamentIO, span: [number, number], label: string): Promise<PoolTrade[] | null> {
+  const out: PoolTrade[] = [];
+  const { from } = prep;
+  for (let k = 0; k < prep.assets.length; k++) {
+    if (io.shouldStop()) return null;
+    const a = prep.assets[k];
+    io.onProgress(span[0] + ((span[1] - span[0]) * k) / prep.assets.length, `${label}: ${a.symbol}`);
+    try {
+      if (a.weekly && a.weekly.length > 200) {
+        for (const t of runLongTermEcho(a.weekly, undefined, 1, 600, stop).trades) {
+          if (t.result === "offen" || t.entryTime < from) continue;
+          const { riskPct, chancePct, ok } = blueTrade(t);
+          out.push({ sym: a.symbol, entry: t.entryTime, exit: t.exitTime, r: t.returnPct, px: t.entry, color: "blau", riskPct, chancePct, legs: t.legs, cancelAt: t.cancelAt, ...(ok ? {} : { blueRuleOut: true }) });
+        }
+      }
+    } catch {
+      /* Wert überspringen */
+    }
+    await tick();
+  }
+  return prep.toEur(out);
+}
+
+/**
+ * Stop lernen (Nutzer 12.11.2026): Blacktrader probiert im ENGEN Rahmen (STOP_RANGE) Auslöser, Nachzieh-Fenster in Wochenkerzen
+ * und Mindestschritt – eine Einstellung nach der anderen. Der Stop startet immer auf der Oberkante und liegt nie darunter.
+ * Übernommen wird nur ein Stand, der Prüfung B8 (realistisch, Teil für Teil) bestanden hat; sonst bleibt es beim bisherigen.
+ */
+export async function tuneStop(prep: Prepared, pool: PoolTrade[], io: TournamentIO, current: StopParams = DEFAULT_STOP): Promise<{ params: StopParams; note: string } | null> {
+  if (!prep.ht.learn.length) return null;
+  const rest = pool.filter((t) => t.color !== "blau");
+  const baseBlue = await bluePoolFor(prep, current, io, [0, 0.1], "Stop lernen: bisheriger Stand");
+  if (!baseBlue) return null;
+  const basePool = activePool([...rest, ...baseBlue]);
+  let cache: HtBaseCache = {};
+  let best = current;
+  let bestPool = basePool;
+  const tried: string[] = [];
+  const candidates: Partial<StopParams>[] = [{ gain: 0.15 }, { gain: 0.25 }, { gain: 0.3 }, { trailWeeks: 3 }, { trailWeeks: 4 }, { trailWeeks: 6 }, { step: 0.03 }, { step: 0.08 }];
+  for (let c = 0; c < candidates.length; c++) {
+    if (io.shouldStop()) return null;
+    const cand: StopParams = { ...best, ...candidates[c] };
+    // nur innerhalb des Rahmens
+    if (cand.gain < STOP_RANGE.gain[0] || cand.gain > STOP_RANGE.gain[1] || cand.step < STOP_RANGE.step[0] || cand.step > STOP_RANGE.step[1] || !(STOP_RANGE.trailWeeks as readonly number[]).includes(cand.trailWeeks)) continue;
+    if (JSON.stringify(cand) === JSON.stringify(best)) continue;
+    const blue = await bluePoolFor(prep, cand, io, [0.1 + (0.9 * c) / candidates.length, 0.1 + (0.9 * (c + 1)) / candidates.length], `Stop lernen ${c + 1}/${candidates.length}`);
+    if (!blue) return null;
+    const candPool = activePool([...rest, ...blue]);
+    const r = b8Hardtest(bestPool, candPool, prep.ht.learn, prep.priceAt, cache);
+    tried.push(`${JSON.stringify(candidates[c])}: ${r.veto ? "abgelehnt" : "bestanden"}`);
+    if (!r.veto) {
+      best = cand;
+      bestPool = candPool;
+      cache = {}; // neuer Maßstab → Kennzahlen des Maßstabs neu rechnen
+    }
+  }
+  const changed = JSON.stringify(best) !== JSON.stringify(current);
+  return { params: best, note: changed ? `Stop gelernt: Auslöser +${Math.round(best.gain * 100)} %, Nachziehen ${best.trailWeeks ? `über ${best.trailWeeks} Wochenkerzen (Mindestschritt ${Math.round(best.step * 100)} %)` : "aus"} – B8 bestanden.` : "Stop: bisheriger Stand bleibt (kein Kandidat hat B8 bestanden)." };
 }
 
 /** Versuche einer Runde (Runde b spielt die Zeiträume b, b+5, b+10, … – so ist jede Runde gemischt). */
@@ -272,7 +333,9 @@ export function buildReport(prep: Prepared, btRuns: { w: Window; r: RunResult }[
   const hl = prep.ht.learn.length ? htStats(active, prep.ht.learn, prep.priceAt) : null;
   const hk = prep.ht.locked.length ? htStats(active, prep.ht.locked, prep.priceAt) : null;
   const hardtest = hl ? { customers: prep.ht.learn.length + prep.ht.locked.length, learn: { avg: hl.avg, lossShare: hl.lossShare, worst5: hl.worst5, bear: hl.bear }, locked: hk ? { avg: hk.avg, lossShare: hk.lossShare, n: hk.n } : null } : null;
-  return { v: 2, at: new Date().toISOString(), rules: { ...RULES }, ranking, scenarioCount, rounds, split: { blau: only("blau"), gruen: only("gruen"), rot: only("rot") }, benchmark: prep.benchmark ?? null, blueRule: blueRuleCheck(prep, finalPool), improvedCells, opponents: prep.lineup, note: prep.note, hardtest };
+  const blues = active.filter((t) => t.color === "blau");
+  const blueQuote = blues.length ? { rate: blues.filter((t) => t.r > 0).length / blues.length, n: blues.length } : null;
+  return { v: 2, at: new Date().toISOString(), rules: { ...RULES }, ranking, scenarioCount, rounds, blueQuote, split: { blau: only("blau"), gruen: only("gruen"), rot: only("rot") }, benchmark: prep.benchmark ?? null, blueRule: blueRuleCheck(prep, finalPool), improvedCells, opponents: prep.lineup, note: prep.note, hardtest };
 }
 
 /** Kontrolle: derselbe Stand mit und ohne Blau-Regel über alle Zeiträume – zeigt, ob die Regel noch hilft. */

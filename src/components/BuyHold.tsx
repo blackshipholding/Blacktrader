@@ -3,13 +3,15 @@
 // Verkauft wird nur, wenn du es eingibst. Kurs jetzt: Börsenkurs, in Euro umgerechnet.
 import { runScan, useScan } from "@/lib/client/scanner";
 import { holdTrend } from "@/lib/client/holdingWatch";
+import { getStopParams } from "@/lib/client/stopParams";
+import type { ReasonNote } from "./AssetDetail";
 import { useEffect, useMemo, useState } from "react";
 import { AddAsset } from "./AddAsset";
 import { Sheet } from "./Sheet";
 import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
 import { toEur } from "@/lib/fx";
-import { protectDue, SHIP_PROTECT } from "@/lib/analysis/longterm";
+import { protectDue } from "@/lib/analysis/longterm";
 import { actions, useAppData } from "@/lib/store/store";
 import type { Horizon, ResolvedAsset } from "@/lib/types";
 import { EntryTile } from "./EntryTile";
@@ -54,35 +56,33 @@ function usePrices(holdings: Holding[]) {
   return prices;
 }
 
-/** Was Blacktrader zu deinem Wert sagt: großer Trend (Wochenchart) und aktueller Einstieg – nur zur Info, kein Verkauf. */
-function BlacktraderView({ h }: { h: Holding }) {
-  const scan = useScan();
-  const e = scan.entries.find((x) => x.asset.kind === h.kind && x.asset.symbol === h.symbol);
-  if (!e) return <div className="mt-1 text-[13px] text-stone-500">{scan.busy ? "Blacktrader rechnet …" : "Blacktrader: noch keine Analyse"}</div>;
-  const t = holdTrend(e);
-  // Balken und Chart stehen in der Shipmaster-Kachel darunter (wie in der Watchlist); hier nur die Warnung
-  return t === -1 ? <p className="mt-1.5 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-[13px] text-red-200">Großer Trend fallend – prüfe deine Position.</p> : null;
-}
-
-/** Shipmaster-Tipp wie in der Watchlist: Kachel mit Chart, Balken, Einstieg/Stop/Ziel; Antippen → Detailansicht (nur Tipps) */
-function ShipmasterTip({ h, onOpen }: { h: Holding; onOpen: (a: ResolvedAsset, horizon?: Horizon) => void }) {
+/**
+ * EINE Karte pro Kauf (Nutzer 12.11.2026): oben deine Position (Antippen → Kauf/Verkauf/Dividende), darunter Blacktraders
+ * Chart, Balken und Einstieg/Stop/Ziel (Antippen → Detailansicht). Es gilt EIN Szenario – das von Blacktrader (wie bei den
+ * Aktien). Hinweise zur Position (großer Trend fällt, Shipmaster-Tipp) stehen in der Detailansicht unter der Begründung.
+ */
+function HoldCard({ h, price, value, open, onOpenPosition, onOpenAsset }: { h: Holding; price?: number; value: number | null; open: number | null; onOpenPosition: () => void; onOpenAsset: (a: ResolvedAsset, horizon: Horizon | undefined, notes: ReasonNote[]) => void }) {
   const scan = useScan();
   const e = scan.entries.find((x) => x.asset.kind === h.kind && x.asset.symbol === h.symbol);
   const asset = { symbol: h.symbol, name: h.name, kind: h.kind, yahooSymbol: h.yahooSymbol, binanceSymbol: h.binanceSymbol, isin: h.isin, exchange: h.exchange, currency: h.currency } as ResolvedAsset;
+  const s = summarizeHolding(h);
   // Shipmaster 0.2 als TIPP (nichts wird gebucht): Kurs über der blauen Zone und ≥ +20 % über deinem Ø Kaufpreis → Stop-Loss auf die Oberkante
   const lt = e?.longterm;
-  const price = e?.ltCandles?.at(-1)?.close;
-  const avg = summarizeHolding(h).avg;
-  const tip = lt && price != null && avg > 0 && protectDue(price, avg, lt.zoneTop);
+  const last = e?.ltCandles?.at(-1)?.close;
+  const gain = getStopParams().gain;
+  const tip = !!lt && last != null && s.avg > 0 && protectDue(last, s.avg, lt.zoneTop, gain);
+  const notes: ReasonNote[] = [];
+  if (holdTrend(e) === -1) notes.push({ tone: "red", text: "Großer Trend fallend (Wochenchart) – prüfe deine Position." });
+  if (tip && lt) notes.push({ tone: "blue", text: `Shipmaster 0.2 – Tipp: Kurs über der Zone und über +${Math.round(gain * 100)} % – Stop-Loss auf die Oberkante ${lt.zoneTop.toLocaleString("de-DE", { maximumFractionDigits: 2 })} ${h.currency ?? ""} erwägen.` });
   return (
-    <>
-      <EntryTile asset={asset} entry={e} chart onOpen={() => onOpen(asset, e?.best.horizon ?? e?.ltHorizon)} />
-      {tip && (
-        <p className="mt-1.5 rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[13px] text-sky-200">
-          Shipmaster 0.2 – Tipp: Kurs über der Zone und über +{Math.round(SHIP_PROTECT.gain * 100)} % – Stop-Loss auf die Oberkante {lt.zoneTop.toLocaleString("de-DE", { maximumFractionDigits: 2 })} {h.currency ?? ""} erwägen.
-        </p>
-      )}
-    </>
+    <EntryTile
+      asset={asset}
+      entry={e}
+      price={price}
+      chart
+      position={{ qty: s.qty, avg: s.avg, value, open, openPct: open != null && s.cost > 0 ? (open / s.cost) * 100 : null, onOpenPosition }}
+      onOpen={() => onOpenAsset(asset, e?.best.horizon ?? e?.ltHorizon, notes)}
+    />
   );
 }
 
@@ -160,26 +160,8 @@ export function BuyHold() {
       {held.length === 0 && sold.length === 0 && <div className="card p-5 text-center text-[15px] text-stone-300">Noch keine Käufe. Trag deinen ersten Kauf mit Datum, Preis je Stück und Stückzahl ein.</div>}
 
       <div className="space-y-3">
-        {held.map(({ h, s, price, value: v, open }) => (
-          <div key={h.id} className="space-y-2">
-          <button className="card edge-core w-full p-4 text-left" onClick={() => setDetail(h)}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-[16px] font-semibold text-stone-50">{h.name}</div>
-                <div className="text-[13px] text-stone-400">
-                  {h.symbol} · {s.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück · Ø {eur(s.avg)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="num text-[17px] font-semibold text-stone-50">{v != null ? eur(v) : "–"}</div>
-                <div className={`num text-[14px] ${open == null ? "text-stone-400" : open >= 0 ? "text-up" : "text-down"}`}>{open == null ? "Kurs lädt …" : `${eur(open, true)} (${pct((open / s.cost) * 100)})`}</div>
-              </div>
-            </div>
-            <div className="mt-1 text-[13px] text-stone-400">Kurs jetzt {price != null ? eur(price) : "–"} · gekauft für {eur(s.cost)}</div>
-            <BlacktraderView h={h} />
-          </button>
-          <ShipmasterTip h={h} onOpen={(a, hz) => openSheet(a, hz, { withEntry: true, tipOnly: true })} />
-          </div>
+        {held.map(({ h, price, value: v, open }) => (
+          <HoldCard key={h.id} h={h} price={price} value={v} open={open} onOpenPosition={() => setDetail(h)} onOpenAsset={(a, hz, notes) => openSheet(a, hz, { withEntry: true, tipOnly: true, notes })} />
         ))}
         {sold.length > 0 && (
           <>

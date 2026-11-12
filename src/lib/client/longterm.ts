@@ -6,7 +6,8 @@ import { fillShares, makeOrderSlip, OVER_SHARE } from "./orderSlip";
 import { toEurReturn, tradeCurrency } from "./eur";
 import { eurPerUnit } from "../fx";
 import { analyzeElliott } from "../analysis/elliott";
-import { assessLongTerm, blendedReturn, protectDue, SHIP_PROTECT, type LongTermAction, type LongTermZone } from "../analysis/longterm";
+import { assessLongTerm, blendedReturn, protectDue, trailStop, type LongTermAction, type LongTermZone } from "../analysis/longterm";
+import { getStopParams } from "./stopParams";
 import { money } from "../analysis/persona";
 import { actions, getData, type LongTermProposal, type Trade } from "../store/store";
 import { ACCOUNT, ADD, canAfford, freeCash, noMoney, noTwice } from "./account";
@@ -164,7 +165,7 @@ export function checkLongTermWithCandles(t: Trade, candles: Candle[]): string | 
   const a = assessLongTerm({ direction: "long", entry: avgEntry(t), invalidation: t.lt.invalidation, stop: t.stop || undefined, remaining: t.remaining ?? 1, lastActionKey: t.lastActionKey }, candles, elliott);
   const price = candles[candles.length - 1].close;
   // Geänderte Zählung hat Vorrang; sonst Shipmaster 0.2 (Gewinn-Schutz), wenn kein anderer Vorschlag offen ist
-  const act = a ?? (t.proposal ? null : shipmasterProtect(t, price));
+  const act = a ?? (t.proposal ? null : shipmasterProtect(t, price) ?? shipmasterTrail(t, candles));
   if (act && act.key !== t.proposal?.key) {
     const p = makeProposal(act, price);
     actions.updateTrade(t.id, { proposal: p });
@@ -188,13 +189,38 @@ export function shipmasterProtect(t: Trade, price: number): LongTermAction | nul
   if (t.lastActionKey === key || t.proposal?.key === key) return null;
   if (t.stop > 0 && t.stop >= t.lt.zoneTop * 0.999) return null; // Stop liegt schon mindestens auf der Oberkante
   const avg = avgEntry(t);
-  if (!protectDue(price, avg, t.lt.zoneTop)) return null;
+  const sp = getStopParams();
+  if (!protectDue(price, avg, t.lt.zoneTop, sp.gain)) return null;
   const up = ((price - avg) / avg) * 100;
   return {
     kind: "stop",
     key,
     stop: t.lt.zoneTop,
-    reason: `Shipmaster 0.2: Kurs ${up.toFixed(0)} % über deinem Einstieg und über der blauen Zone – Stop-Loss auf die Oberkante ${money(t.lt.zoneTop, tradeCurrency(t))} sichert den Gewinn (ab +${Math.round(SHIP_PROTECT.gain * 100)} %).`,
+    reason: `Shipmaster 0.2: Kurs ${up.toFixed(0)} % über deinem Einstieg und über der blauen Zone – Stop-Loss auf die Oberkante ${money(t.lt.zoneTop, tradeCurrency(t))} sichert den Gewinn (ab +${Math.round(sp.gain * 100)} %).`,
+  };
+}
+
+/**
+ * Shipmaster 0.2 – Stop nachziehen oder zurückschieben (lernbar, enger Rahmen): nur wenn der Stop schon bei flatex liegt, nur
+ * einmal je FERTIGER Wochenkerze, aus dem tiefsten Tief der letzten Wochenkerzen (Dochte zählen), nur bei Mindestschritt,
+ * nie unter die Oberkante der Zone und immer unter dem Kurs. Als Vorschlag – gebucht erst nach „Bei flatex erledigt“.
+ */
+export function shipmasterTrail(t: Trade, candles: Candle[], now = Date.now()): LongTermAction | null {
+  const sp = getStopParams();
+  if (sp.trailWeeks <= 0 || t.strategy !== "longterm" || t.status === "closed" || !t.lt || !(t.stop > 0) || t.proposal || t.interval !== "1w") return null;
+  const done = candles.filter((c) => c.time * 1000 + 7 * 86400e3 <= now);
+  const last = done[done.length - 1];
+  if (!last || (t.lastTrailAt != null && t.lastTrailAt >= last.time)) return null; // diese Wochenkerze schon geprüft
+  const price = candles[candles.length - 1].close;
+  const ns = trailStop(t.stop, t.lt.zoneTop, done.slice(-sp.trailWeeks).map((c) => c.low), price, sp);
+  actions.updateTrade(t.id, { lastTrailAt: last.time });
+  if (ns === t.stop || ns < t.lt.zoneTop) return null;
+  const cur = tradeCurrency(t);
+  return {
+    kind: "stop",
+    key: `trail:${t.lt.key}:${last.time}`,
+    stop: ns,
+    reason: `Shipmaster 0.2 – Wochenkerze fertig: Stop ${ns > t.stop ? "nachziehen" : "zurück Richtung Oberkante"} von ${money(t.stop, cur)} auf ${money(ns, cur)} (nie unter die Oberkante ${money(t.lt.zoneTop, cur)}).`,
   };
 }
 
