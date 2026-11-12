@@ -159,8 +159,8 @@ function ShareCard() {
   }, []);
   return (
     <section className="card space-y-3 p-4">
-      <h2 className="text-[17px] text-gold-light">Dividenden an Blacktime senden</h2>
-      <p className="text-[15px] text-stone-300">Bei jeder Änderung deiner Buy-&-Hold-Dividenden (Datum, Aktie, Betrag brutto/netto) geht die Liste automatisch an Blacktime. Sonst wird nichts gesendet.</p>
+      <h2 className="text-[17px] text-gold-light">Dividenden an Blacktimer senden</h2>
+      <p className="text-[15px] text-stone-300">Bei jeder Änderung deiner Buy-&-Hold-Dividenden (Datum, Aktie, Stück, Betrag brutto/netto) geht die Liste (mit Stückzahl) automatisch an Blacktimer. Sonst wird nichts gesendet.</p>
       <label className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl bg-white/5 px-3 text-[15px] text-stone-200">
         <span>
           Automatisch senden
@@ -184,7 +184,7 @@ function ShareCard() {
       {on && code && (
         <>
           <div className="rounded-xl bg-white/5 px-3 py-2 text-[14px] text-stone-300">
-            Dein Kopplungs-Code für Blacktime (nur du kennst ihn):
+            Dein Kopplungs-Code für Blacktimer (nur du kennst ihn):
             <div className="num mt-1 break-all text-[16px] font-semibold text-stone-50 select-all">{code}</div>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -201,7 +201,7 @@ function ShareCard() {
             <button
               className="btn"
               onClick={() => {
-                if (!window.confirm("Neuen Code erzeugen? Blacktime braucht dann den neuen Code.")) return;
+                if (!window.confirm("Neuen Code erzeugen? Blacktimer braucht dann den neuen Code.")) return;
                 setCode(renewCode());
                 setMsg("Neuer Code erzeugt.");
               }}

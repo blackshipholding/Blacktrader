@@ -1,12 +1,19 @@
 "use client";
 // Buy-&-Hold-Dividenden automatisch an Blacktime weitergeben: bei jeder Änderung (neuer Kauf, Dividende von Hand, neue
-// automatische Dividende) geht die Liste (Datum, Aktie, brutto, netto) an den Server-Speicher. Blacktime holt sie mit dem
+// automatische Dividende) geht die Liste (Datum, Aktie, Stückzahl, brutto, netto) an den Server-Speicher. Blacktime holt sie mit dem
 // Kopplungs-Code ab. Sonst wird nichts gesendet; an der Analyse und am Handel ändert das nichts.
 import { netOfTax } from "../analysis/dividends";
 import { getData, subscribeData } from "../store/store";
 import { creditsOfHolding, loadForPositions, subscribeBook } from "./dividendBook";
 
-export interface ShareRow { name: string; symbol: string; date: string; gross: number; net: number; source: "hand" | "auto" }
+export interface ShareRow { name: string; symbol: string; date: string; /** Stückzahl, für die die Dividende gilt */ shares: number; gross: number; net: number; source: "hand" | "auto" }
+
+/** Stückzahl am Stichtag aus Käufen/Verkäufen (für von Hand eingetragene Dividenden) */
+function qtyAt(h: { txs: { type: string; date: string; qty: number }[] }, date: string): number {
+  let q = 0;
+  for (const t of h.txs) if (t.date <= date) q += t.type === "buy" ? t.qty : t.type === "sell" ? -t.qty : 0;
+  return Math.max(0, Math.round(q * 1e4) / 1e4);
+}
 
 const CODE = "bt-share-code";
 const ON = "bt-share-on";
@@ -51,8 +58,8 @@ export function renewCode(): string {
 export function buildShareRows(now = Date.now()): ShareRow[] {
   const out: ShareRow[] = [];
   for (const h of getData().holdings) {
-    for (const t of h.txs) if (t.type === "div" && t.price > 0) out.push({ name: h.name, symbol: h.symbol, date: t.date, gross: r2(t.price), net: r2(netOfTax(t.price)), source: "hand" });
-    for (const c of creditsOfHolding(h, now)) out.push({ name: h.name, symbol: h.symbol, date: c.date, gross: r2(c.grossEur), net: r2(netOfTax(c.grossEur)), source: "auto" });
+    for (const t of h.txs) if (t.type === "div" && t.price > 0) out.push({ name: h.name, symbol: h.symbol, date: t.date, shares: qtyAt(h, t.date), gross: r2(t.price), net: r2(netOfTax(t.price)), source: "hand" });
+    for (const c of creditsOfHolding(h, now)) out.push({ name: h.name, symbol: h.symbol, date: c.date, shares: Math.round(c.shares * 1e4) / 1e4, gross: r2(c.grossEur), net: r2(netOfTax(c.grossEur)), source: "auto" });
   }
   return out.sort((a, b) => b.date.localeCompare(a.date));
 }

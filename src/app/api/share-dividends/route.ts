@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
 const json = (b: unknown, status = 200) => NextResponse.json(b, { status, headers: CORS });
 
-interface Row { name: string; symbol: string; date: string; gross: number; net: number; source: "hand" | "auto" }
+interface Row { name: string; symbol: string; date: string; shares: number; gross: number; net: number; source: "hand" | "auto" }
 const keyOf = (code: string) => `share:bh-div:${createHash("sha256").update(code).digest("hex")}`;
 const okCode = (c: unknown): c is string => typeof c === "string" && /^[A-Za-z0-9_-]{20,80}$/.test(c);
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     for (const r of b.rows as Partial<Row>[]) {
       if (!r || typeof r.name !== "string" || typeof r.symbol !== "string" || typeof r.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
       if (!Number.isFinite(r.gross) || !Number.isFinite(r.net)) continue;
-      rows.push({ name: r.name.slice(0, 80), symbol: r.symbol.slice(0, 20), date: r.date, gross: r.gross!, net: r.net!, source: r.source === "hand" ? "hand" : "auto" });
+      rows.push({ name: r.name.slice(0, 80), symbol: r.symbol.slice(0, 20), date: r.date, shares: Number.isFinite(r.shares) && r.shares! >= 0 ? r.shares! : 0, gross: r.gross!, net: r.net!, source: r.source === "hand" ? "hand" : "auto" });
     }
     await setJson(keyOf(b.code), { at: Date.now(), rows });
     return json({ ok: true, count: rows.length });
