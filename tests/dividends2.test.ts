@@ -64,3 +64,30 @@ describe("Dividenden: Buy & Hold und Blacktrader-Konto", () => {
     expect(none.dividends).toBe(0);
   });
 });
+
+import { runWindow, type PoolTrade, type Window } from "../src/lib/trainer/tournament";
+import { simulateAccount } from "../src/lib/client/account";
+
+describe("Dividenden im Trainer und EchoChart", () => {
+  const w = { from: sec("2020-01-01"), to: sec("2021-12-31"), cap: 20000, k: 0, scenario: "neutral" } as unknown as Window;
+  const base: PoolTrade = { sym: "X", entry: sec("2020-02-03"), exit: sec("2020-12-01"), r: 10, px: 100 };
+  const price = () => 100;
+  it("Trainer: Dividende am Auszahlungstag aufs Konto, 27,5 % KESt", () => {
+    const o = runWindow([base], w, price);
+    const d = runWindow([{ ...base, divs: [{ at: ms("2020-06-01"), pct: 2 }] }], w, price);
+    const stake = 2000; // 10 % von 20.000 €
+    expect(d.end - o.end).toBeCloseTo(stake * 0.02 * 0.725, 6);
+    expect(d.tax - o.tax).toBeCloseTo(stake * 0.02 * 0.275, 6);
+  });
+  it("Trainer: Dividende nach dem Verkauf wird trotzdem gutgeschrieben (Anspruch am Ex-Tag)", () => {
+    const o = runWindow([base], w, price);
+    const d = runWindow([{ ...base, divs: [{ at: ms("2020-12-20"), pct: 1 }] }], w, price);
+    expect(d.end - o.end).toBeCloseTo(2000 * 0.01 * 0.725, 6);
+  });
+  it("EchoChart-Konto: gleiche Regel", () => {
+    const t = { sym: "X", entry: ms("2020-02-03"), exit: ms("2020-12-01"), r: 10 };
+    const o = simulateAccount([t], 20000);
+    const d = simulateAccount([{ ...t, divs: [{ at: ms("2020-06-01"), pct: 2 }] }], 20000);
+    expect(d.end - o.end).toBeCloseTo(2000 * 0.02 * 0.725, 6);
+  });
+});

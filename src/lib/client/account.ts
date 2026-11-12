@@ -258,6 +258,8 @@ export interface SimTrade {
   r: number;
   /** Blauer (langfristiger) Einstieg – nur dort ist Nachkauf erlaubt */
   blue?: boolean;
+  /** Dividenden (Aktien): Auszahlungstag in ms, brutto in % des Einstiegskurses (nur bei Besitz vor dem Ex-Tag) */
+  divs?: { at: number; pct: number }[];
 }
 
 export interface SimResult {
@@ -279,11 +281,12 @@ export interface SimResult {
  * je Wert höchstens eine Position, 7,90 € je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im Jahr.
  */
 export function simulateAccount(trades: SimTrade[], start: number = ACCOUNT.start): SimResult {
-  type Ev = { at: number; kind: 0 | 1; i: number };
+  type Ev = { at: number; kind: 0 | 1 | 2; i: number; pct?: number };
   const ev: Ev[] = [];
   trades.forEach((t, i) => {
     ev.push({ at: t.entry, kind: 1, i });
     ev.push({ at: t.exit, kind: 0, i });
+    for (const d of t.divs ?? []) if (d.at > t.entry) ev.push({ at: d.at, kind: 2, i, pct: d.pct });
   });
   ev.sort((a, b) => a.at - b.at || a.kind - b.kind);
   let cash: number = start;
@@ -295,9 +298,20 @@ export function simulateAccount(trades: SimTrade[], start: number = ACCOUNT.star
   let skipped = 0;
   let broke = false;
   const open = new Map<number, number>(); // Trade → Einsatz
+  const stakes = new Map<number, number>(); // Einsatz bleibt für Dividenden bis zum Auszahlungstag erhalten
   const per = new Map<string, number>();
   for (const e of ev) {
     const t = trades[e.i];
+    if (e.kind === 2) {
+      // Dividende am Auszahlungstag: brutto aufs Konto, KESt sofort (Verlusttopf), keine Gebühr
+      const st = stakes.get(e.i);
+      if (st == null || !(e.pct! > 0)) continue;
+      const gross = (st * e.pct!) / 100;
+      const k = kest.settle(gross, yearOf(e.at));
+      cash += gross - k;
+      tax += k;
+      continue;
+    }
     if (e.kind === 1) {
       // Je Wert eine Position; Nachkauf nur bei Blau, höchstens ADD.max × ADD.stake
       const have = per.get(t.sym) ?? 0;
@@ -310,6 +324,7 @@ export function simulateAccount(trades: SimTrade[], start: number = ACCOUNT.star
       cash -= stake + ACCOUNT.fee;
       fees += ACCOUNT.fee;
       open.set(e.i, stake);
+      stakes.set(e.i, stake);
       invested += stake;
       per.set(t.sym, have + 1);
       taken++;

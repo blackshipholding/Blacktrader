@@ -1,6 +1,7 @@
 // Turnier rechnen (im Web Worker): Kursdaten laden, Trades aller 16 Teilnehmer erzeugen und 50 Versuche à 5 Jahre
 // in echter Zeit durchspielen. Blacktrader spielt in 5 Runden zu je 10 Versuchen; zwischen den Runden lernt er
 // (Strenge-Regeln unverändert) und spielt die nächste Runde mit seinem neuesten gespeicherten Stand.
+import { mergeEvents, sharesAtEx } from "../analysis/dividends";
 import { DEFAULT_STOP, runLongTermEcho, STOP_RANGE, type StopParams } from "../analysis/longterm";
 import type { LearnableParams } from "../analysis/params";
 import type { AssetKind, Candle, Horizon } from "../types";
@@ -160,8 +161,21 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
     const r = closeAt(eurusd, t);
     return r && r > 0 ? 1 / r : 1;
   };
+  // Dividenden (Nutzer 12.11.2026): wer VOR dem Ex-Tag besitzt, bekommt sie am Auszahlungstag (Ex-Tag + 21 Tage, wenn nicht bekannt);
+  // gilt für alle Teilnehmer gleich. Ohne Dividendendaten eines Werts: wie bisher.
+  const divEv = new Map(stocks.map((a) => [a.symbol, mergeEvents(extraData.get(a.symbol)?.dividends ?? [])] as const));
+  const withDivs = (p: PoolTrade): PoolTrade => {
+    const ev = divEv.get(p.sym);
+    if (!ev?.length || !(p.px && p.px > 0) || p.short) return p;
+    const divs: { at: number; pct: number }[] = [];
+    for (const e of ev) {
+      if (e.skip || !sharesAtEx([{ qty: 1, from: p.entry * 1000, to: p.exit * 1000 }], e.ex)) continue;
+      divs.push({ at: e.pay, pct: ((e.amount * eurPer(p.sym, e.pay / 1000)) / p.px) * 100 });
+    }
+    return divs.length ? { ...p, divs } : p;
+  };
   const toEur = (pool: PoolTrade[]): PoolTrade[] =>
-    pool.map((p) => ({ ...p, r: ((1 + p.r / 100) * (eurPer(p.sym, p.exit) / eurPer(p.sym, p.entry)) - 1) * 100, px: p.px != null ? p.px * eurPer(p.sym, p.entry) : p.px, legs: p.legs?.map((l) => ({ t: l.t, p: l.p * eurPer(p.sym, l.t) })) }));
+    pool.map((p) => withDivs({ ...p, r: ((1 + p.r / 100) * (eurPer(p.sym, p.exit) / eurPer(p.sym, p.entry)) - 1) * 100, px: p.px != null ? p.px * eurPer(p.sym, p.entry) : p.px, legs: p.legs?.map((l) => ({ t: l.t, p: l.p * eurPer(p.sym, l.t) })) }));
   const priceAt = (sym: string, t: number) => {
     const c = closeAt(bySym.get(sym), t);
     return c == null ? null : c * eurPer(sym, t);
@@ -197,7 +211,7 @@ export async function prepareTournament(io: TournamentIO, span: [number, number]
   const benchmark = etf && etf.length > 300 && etf[0].time <= from + 7 * 86400 ? summarizeRuns("etf", BENCHMARK.name, BENCHMARK.desc, windows.map((w) => ({ w, r: benchmarkRun(etf, w) }))) : null;
   const cnt: Partial<Record<Scenario, number>> = {};
   for (const w of windows) if (w.cap === windows[0].cap) cnt[w.scenario] = (cnt[w.scenario] ?? 0) + 1;
-  const note = `Alle Beträge in Euro (Wechselkurs am Kauf- und Verkaufstag${eurusd?.length ? "" : " – Euro/Dollar-Kurs nicht erreichbar, ohne Umrechnung"}). ${assets.length} Werte (Aktien, Krypto, Rohstoffe), Daten ab ${new Date(from * 1000).toLocaleDateString("de-DE")}, ${windows.length / Math.max(1, new Set(windows.map((w) => w.cap)).size)} Zeiträume à 5 Jahre × ${new Set(windows.map((w) => w.cap)).size} Depotgrößen (${SCENARIOS.filter((s) => cnt[s]).map((s) => `${cnt[s]}× ${s === "baerisch" ? "bärisch" : s}`).join(", ")}). Rohstoffe kurzfristig (Stundenkerzen) sind nicht enthalten. Härtetest: ${ht.learn.length + ht.locked.length} Kunden (davon ${ht.locked.length} gesperrt). Gegner diesmal: ${players.map((o) => o.name).join(", ")}. Bank-Analysten: Einstufungen erst ab etwa 2012 und nur für US-Aktien (${[...extraData.values()].filter((x) => x.analysts?.length).length} Werte mit Daten).`;
+  const note = `Alle Beträge in Euro (Wechselkurs am Kauf- und Verkaufstag${eurusd?.length ? "" : " – Euro/Dollar-Kurs nicht erreichbar, ohne Umrechnung"}). ${assets.length} Werte (Aktien, Krypto, Rohstoffe), Daten ab ${new Date(from * 1000).toLocaleDateString("de-DE")}, ${windows.length / Math.max(1, new Set(windows.map((w) => w.cap)).size)} Zeiträume à 5 Jahre × ${new Set(windows.map((w) => w.cap)).size} Depotgrößen (${SCENARIOS.filter((s) => cnt[s]).map((s) => `${cnt[s]}× ${s === "baerisch" ? "bärisch" : s}`).join(", ")}). Dividenden der Aktien sind für alle Teilnehmer enthalten (wer vor dem Ex-Tag besitzt, bekommt sie am Auszahlungstag, danach 27,5 % KESt). Rohstoffe kurzfristig (Stundenkerzen) sind nicht enthalten. Härtetest: ${ht.learn.length + ht.locked.length} Kunden (davon ${ht.locked.length} gesperrt). Gegner diesmal: ${players.map((o) => o.name).join(", ")}. Bank-Analysten: Einstufungen erst ab etwa 2012 und nur für US-Aktien (${[...extraData.values()].filter((x) => x.analysts?.length).length} Werte mit Daten).`;
   return { assets, windows, from, priceAt, techWeakAt, toEur, regimeAt: regimeIndex(spx), bots, lineup, benchmark, note, ht };
 }
 

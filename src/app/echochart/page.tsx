@@ -10,6 +10,8 @@ import { isChance, isTopChance, notHeld, potential, runScan, useHeldKeys, useSca
 import { learnedParams } from "@/lib/client/trainerParams";
 import { useAppData } from "@/lib/store/store";
 import { ACCOUNT, simulateAccount, type SimTrade } from "@/lib/client/account";
+import { sharesAtEx } from "@/lib/analysis/dividends";
+import { eventsFor, loadDividends } from "@/lib/client/dividendBook";
 import { blueTrade, greenRedTrade, makeTechWeakAt, suppressedBy, type ActiveIntervals } from "@/lib/analysis/tradeRules";
 import { regimeIndex } from "@/lib/trainer/tournament";
 import { type AssetKind, type Candle, type ResolvedAsset } from "@/lib/types";
@@ -137,7 +139,15 @@ export default function EchoChartPage() {
           (r?.trades.trades ?? []).filter((x) => x.entryTime >= periodStart && !suppressedBy(a.kind, src, x.entryTime, active) && greenRedTrade(x, ctx)),
         );
         const bl = (rw?.ltTrades ?? []).filter((x) => x.entryTime >= periodStart && x.result !== "offen" && blueTrade(x).ok);
-        const t = [...gr.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: false })), ...bl.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: true }))];
+        // Dividenden (Aktien): nur wenn VOR dem Ex-Tag besessen; Gutschrift am Auszahlungstag (Ex-Tag + 21 Tage, von Hand änderbar)
+        if (a.kind === "stock") await loadDividends(a, periodStart * 1000).catch(() => undefined);
+        const divEv = a.kind === "stock" ? eventsFor(a).filter((e) => !e.skip) : [];
+        const divsOf = (entryTime: number, exitTime: number, px: number) =>
+          px > 0 ? divEv.filter((e) => sharesAtEx([{ qty: 1, from: entryTime * 1000, to: exitTime * 1000 }], e.ex) > 0).map((e) => ({ at: e.pay, pct: (e.amount / px) * 100 })) : [];
+        const t = [
+          ...gr.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: false, divs: divsOf(x.entryTime, x.exitTime, x.entry) })),
+          ...bl.map((x) => ({ entryTime: x.entryTime, exitTime: x.exitTime, returnPct: x.returnPct, blue: true, divs: divsOf(x.entryTime, x.exitTime, x.entry) })),
+        ];
         const rawZones = [...(rd?.zones ?? []).filter((z) => z.kind !== "core"), ...(rw?.zones ?? [])].filter((z) => z.t >= periodStart).sort((x, y) => x.t - y.t);
         // Shipmaster 0.1: Blacktrader handelt keine Shorts → Short-Zonen werden hier nicht gezeigt (Wunsch des Nutzers)
         const zones = rawZones.filter((z) => z.kind !== "short");
@@ -148,9 +158,9 @@ export default function EchoChartPage() {
           rawZones,
           candles: chartCandles,
           trades: t.length,
-          tradeHit: t.length ? t.filter((x) => x.returnPct > 0).length / t.length : null,
-          tradeReturn: t.length ? (t.reduce((e, x) => e * (1 + x.returnPct / 100), 1) - 1) * 100 : null,
-          sim: t.map((x) => ({ sym: a.symbol, entry: x.entryTime * 1000, exit: x.exitTime * 1000, r: x.returnPct, blue: x.blue })),
+          tradeHit: t.length ? t.filter((x) => x.returnPct + x.divs.reduce((q, d) => q + d.pct, 0) > 0).length / t.length : null,
+          tradeReturn: t.length ? (t.reduce((e, x) => e * (1 + (x.returnPct + x.divs.reduce((q, d) => q + d.pct, 0)) / 100), 1) - 1) * 100 : null,
+          sim: t.map((x) => ({ sym: a.symbol, entry: x.entryTime * 1000, exit: x.exitTime * 1000, r: x.returnPct, blue: x.blue, divs: x.divs })),
         });
       } catch (e) {
         out.push({ asset: a, zones: [], candles: [], trades: 0, tradeHit: null, tradeReturn: null, sim: [], error: (e as Error).message });

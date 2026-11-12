@@ -41,6 +41,9 @@ export interface PoolTrade {
   cancelAt?: number;
   /** Nur Blacktrader: von der Blau-Regel ausgeschlossen (wird nur zur Kontrolle „ohne Blau-Regel“ gespielt) */
   blueRuleOut?: boolean;
+  /** Dividenden (Aktien): Auszahlungstag in ms und brutto in % des Einstiegskurses. Nur wenn die Aktie VOR dem Ex-Tag gehalten
+   *  wurde; gutgeschrieben am Auszahlungstag, danach 27,5 % KESt (Verlusttopf). Ohne Daten leer = wie bisher. */
+  divs?: { at: number; pct: number }[];
 }
 
 export type { BotSeries as Series } from "./opponents";
@@ -130,7 +133,7 @@ const yearOf = (t: number) => new Date(t * 1000).getUTCFullYear();
  * Spielt die Trades eines Teilnehmers im Zeitraum chronologisch durch.
  * `priceAt(sym, t)` liefert den letzten Schlusskurs bis t (für offene Positionen am Ende).
  */
-type Ev = { t: number; kind: 0 | 1 | 2; i: number };
+type Ev = { t: number; kind: 0 | 1 | 2 | 3; i: number; pct?: number };
 /** Trades und Reihenfolge der Ereignisse eines Zeitraums – gleich für alle Depotgrößen (einmal rechnen, oft spielen) */
 export interface PreparedWindow {
   trades: PoolTrade[];
@@ -143,6 +146,10 @@ export function prepareWindow(pool: PoolTrade[], w: Window): PreparedWindow {
     ev.push({ t: p.entry, kind: 1, i });
     if (p.exit <= w.to) ev.push({ t: p.exit, kind: 0, i });
     if (p.legs && p.cancelAt != null && p.cancelAt > p.entry && p.cancelAt < Math.min(p.exit, w.to)) ev.push({ t: p.cancelAt, kind: 2, i });
+    for (const d of p.divs ?? []) {
+      const t = d.at / 1000;
+      if (t > p.entry && t <= w.to) ev.push({ t, kind: 3, i, pct: d.pct });
+    }
   });
   // Ausstiege vor Einstiegen am selben Tag; sonst nach Zeit und Wert (eindeutig, für alle gleich)
   ev.sort((a, b) => a.t - b.t || a.kind - b.kind || (trades[a.i].sym < trades[b.i].sym ? -1 : trades[a.i].sym > trades[b.i].sym ? 1 : 0));
@@ -162,6 +169,7 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
   const legsOf = new Map<number, { t: number; p: number }[]>(); // Blau: wirklich gekaufte Teile
   const perSym = new Map<string, number>(); // offene Positionen je Wert (1 + Nachkäufe)
   const kest = new KestYear(RULES.tax);
+  const bought = new Map<number, { stake: number; part?: number; legs?: { t: number; p: number }[] }>(); // für Dividenden: auch nach dem Verkauf bis zum Auszahlungstag
   let tax = 0;
   let fees = 0;
   let taken = 0;
@@ -196,6 +204,17 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
     perSym.set(trades[i].sym, (perSym.get(trades[i].sym) ?? 1) - 1);
   };
   for (const e of ev) {
+    if (e.kind === 3) {
+      // Dividende am Auszahlungstag: brutto aufs Konto, KESt sofort, keine Gebühr
+      const b = bought.get(e.i);
+      if (!b || !(e.pct! > 0)) continue;
+      const base = b.legs && b.part != null ? b.part * b.legs.filter((l) => l.t <= e.t).length : b.stake;
+      const gross = (base * e.pct!) / 100;
+      const k = kest.settle(gross, yearOf(e.t));
+      cash += gross - k;
+      tax += k;
+      continue;
+    }
     if (e.kind === 0) {
       const p = trades[e.i];
       if (open.has(e.i)) close(e.i, p.r, e.t, p.px != null ? p.px * (1 + p.r / 100) : undefined);
@@ -236,6 +255,7 @@ export function runWindow(pool: PoolTrade[], w: Window, priceAt: (sym: string, t
           legsOf.set(e.i, lg.slice(0, 1));
         }
       }
+      bought.set(e.i, { stake, part: part.get(e.i), legs: legsOf.get(e.i) });
       perSym.set(p.sym, have + 1);
       taken++;
     }
