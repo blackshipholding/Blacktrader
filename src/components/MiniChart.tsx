@@ -86,6 +86,9 @@ export function MiniChart({ candles, plan, best, height = 92, showWaves = true, 
       {greys.map((g, i) => {
         const x1 = Math.max(0, xt(Math.max(g.from, t0)));
         const x2 = Math.min(W, g.to ? xt(g.to) : W);
+        // Nur lesbare alte Einstiege zeichnen: keine schmalen Striche (< 8 px) und nichts im Bereich der aktuellen Box –
+        // beides sah „unsauber“ aus (Nutzer 12.11.2026, Meta: gestrichelter Strich unter der grünen Box)
+        if (x2 - x1 < 8 || (plan && x2 > lastX - 70)) return null;
         return <rect key={i} x={x1} width={Math.max(3, x2 - x1)} y={y(g.zoneTop!)} height={Math.max(3, y(g.zoneBottom!) - y(g.zoneTop!))} fill="rgba(168,162,158,0.18)" stroke="rgba(168,162,158,0.5)" strokeWidth="1" strokeDasharray="3 2" rx="2" />;
       })}
       {plan && (

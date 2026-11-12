@@ -41,7 +41,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
             <IconClose className="h-6 w-6" />
           </button>
         </div>
-        <div className="overflow-y-auto overscroll-contain px-4 pb-6">{children}</div>
+        <div className="overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-6">{children}</div>
       </div>
     </div>
   );
