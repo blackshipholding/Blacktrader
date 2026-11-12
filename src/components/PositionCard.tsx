@@ -10,7 +10,10 @@ import { eurPerUnit } from "@/lib/fx";
 import type { Trade } from "@/lib/store/store";
 import { ProposalBox } from "./ProposalBox";
 import { Sheet } from "./Sheet";
-import { HeldGauge } from "./NeutralGauge";
+import { GAUGE_PREFIX } from "./NeutralGauge";
+import { EntryTile } from "./EntryTile";
+import { useScan } from "@/lib/client/scanner";
+import type { ResolvedAsset } from "@/lib/types";
 
 const eur = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const qtyStr = (q: number) => q.toLocaleString("de-DE", { maximumFractionDigits: 4 });
@@ -21,6 +24,7 @@ const FEE = 7.9;
 
 export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { group: Trade[]; price?: number; onOpen: () => void; onAction: (t: Trade) => void; nachkauf?: ReactNode }) {
   const first = group[0];
+  const scan = useScan();
   const fx = eurPerUnit(tradeCurrency(first)) ?? 1;
   const cur = tradeCurrency(first);
   const priceNow = price ?? first.lastPrice ?? null;
@@ -51,53 +55,39 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
-    <article className="card edge-core relative p-4" onClick={onOpen}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-[16px] font-semibold text-stone-50">
-            {first.name} <span className="text-[14px] font-normal text-gold">›</span>
-          </div>
-          <div className="text-[13px] text-stone-400">{first.symbol} · Langfristig</div>
-        </div>
-        <div className="text-right">
-          <div className={`num text-[19px] font-semibold ${s.pct == null ? "text-amber-300" : s.pct >= 0 ? "text-up" : "text-down"}`}>{s.pct == null ? "–" : `${s.pct >= 0 ? "+" : ""}${s.pct.toFixed(2).replace(".", ",")} %`}</div>
-          <div className="text-[13px] text-stone-400">Stand gesamt</div>
-        </div>
-      </div>
-
-      <div className="mt-2">
-        <HeldGauge kind={first.kind} symbol={first.symbol} />
-      </div>
-
+    <EntryTile
+      asset={{ symbol: first.symbol, name: first.name, kind: first.kind, yahooSymbol: first.yahooSymbol, binanceSymbol: first.binanceSymbol, currency: first.currency } as ResolvedAsset}
+      entry={scan.entries.find((x) => x.asset.kind === first.kind && x.asset.symbol === first.symbol)}
+      price={priceNow ?? undefined}
+      chart
+      heldColor="blau"
+      gaugePrefix={pending ? GAUGE_PREFIX.blau : GAUGE_PREFIX.held}
+      position={{
+        qty: group.reduce((a, t) => a + heldShares(t), 0),
+        avg: s.avgEur ?? 0,
+        value: s.value,
+        open: s.profit,
+        openPct: s.pct,
+        onOpenPosition: onOpen,
+        unit,
+        pendingText: pending ? { title: "wartet auf Einstieg", sub: priceEur != null && s.reserved > 0 ? `${eur(s.reserved)} reserviert` : undefined } : undefined,
+      }}
+      levels={{
+        entry: s.avgEur != null ? eur(s.avgEur) : "–",
+        stop: s.invalidation && s.invalidation > 0 ? money(s.invalidation, cur) : group.length === 1 && s.stop > 0 ? money(s.stop, cur) : "kein fester Stop",
+        stopLabel: s.invalidation && s.invalidation > 0 ? "Ungültig unter" : "Stop",
+        target: first.lt?.targets?.[0] != null ? money(first.lt.targets[0], cur) : first.targets?.[0] != null ? money(first.targets[0], cur) : "–",
+      }}
+      badgeExtra={
+        <>
+          <span className={pending ? "badge-wait" : "badge-muted"}>{pending ? "wartend" : "offen"}</span>
+          {group.length > 1 && <span className="badge-muted">{group.length} Käufe</span>}
+        </>
+      }
+      onOpen={onOpen}
+      footer={
+        <div>
       {group.map((t) => t.proposal && <ProposalBox key={`p${t.id}`} t={t} price={price} />)}
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="badge-core">Langfristig</span>
-        <span className={pending ? "badge-wait" : "badge-muted"}>{pending ? "wartend" : "offen"}</span>
-        {group.length > 1 && <span className="badge-muted">{group.length} Käufe</span>}
-      </div>
-
-      <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">Gekauft</span>
-          <span className="font-semibold text-stone-50">
-            {qtyStr(group.reduce((a, t) => a + heldShares(t), 0))} {unit}
-          </span>
-        </div>
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">Investiert</span>
-          <span className="font-semibold text-stone-50">{eur(s.invested)}</span>
-        </div>
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">Ø Einstieg</span>
-          <span className="font-semibold text-stone-50">{s.avgEur != null ? eur(s.avgEur) : "–"}</span>
-        </div>
-      </div>
-      <div className="num mt-2 flex flex-wrap justify-between gap-x-3 text-[14px]">
-        <span>Kurs {priceEur != null ? <b>{eur(priceEur)}</b> : "–"}</span>
-        {s.profit != null && <span className={s.profit >= 0 ? "text-up" : "text-down"}>{s.profit >= 0 ? "Gewinn" : "Verlust"} {eur(s.profit, true)}</span>}
-        <span className="text-stone-400">{s.invalidation && s.invalidation > 0 ? `Ungültig ${money(s.invalidation, cur)}` : group.length === 1 && s.stop > 0 ? `Stop ${money(s.stop, cur)}` : "kein fester Stop"}</span>
-      </div>
 
       {showBuys &&
         group.map((t, k) => {
@@ -229,7 +219,9 @@ export function PositionCard({ group, price, onOpen, onAction, nachkauf }: { gro
           </>
         )}
       </div>
-    </article>
+        </div>
+      }
+    />
   );
 }
 

@@ -4,9 +4,8 @@
 import { useEffect, useState } from "react";
 import { addStakeFor, SHIPMASTER, stakeFor } from "@/lib/client/account";
 import { actions, normalizeCapital } from "@/lib/store/store";
-import { netOfTax } from "@/lib/analysis/dividends";
 import type { TradeCredit } from "@/lib/client/dividendBook";
-import { Sheet } from "./Sheet";
+import { DividendListSheet } from "./DividendList";
 
 const eurInt = (n: number) => `${Math.round(n).toLocaleString("de-DE")} €`;
 
@@ -51,28 +50,12 @@ export function CapitalBox({ capital, accountValue, dividends }: { capital: numb
           <div className="num text-[16px] text-up">{eur2(dividends?.net ?? 0)}</div>
         </button>
       </div>
-      <Sheet open={showDiv} onClose={() => setShowDiv(false)} title="Dividenden (netto nach 27,5 % KESt)">
-        <div className="space-y-2 text-[15px]">
-          {(dividends?.items.length ?? 0) === 0 && <p className="text-stone-300">Noch keine Dividende ausgezahlt.</p>}
-          {dividends?.items.map((c, i) => (
-            <div key={`${c.tradeId}${c.ex}${i}`} className="num flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-              <span>
-                <b>{c.name}</b>
-                <span className="block text-[13px] text-stone-400">
-                  Ex {new Date(c.ex).toLocaleDateString("de-DE")} · Zahltag {new Date(c.pay).toLocaleDateString("de-DE")} · {c.shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück
-                </span>
-              </span>
-              <span className="text-up">{eur2(netOfTax(c.grossEur))}</span>
-            </div>
-          ))}
-          {dividends && dividends.items.length > 0 && (
-            <div className="num flex justify-between border-t border-white/10 pt-2 font-semibold">
-              <span>Summe netto</span>
-              <span className="text-up">{eur2(dividends.net)}</span>
-            </div>
-          )}
-        </div>
-      </Sheet>
+      <DividendListSheet
+        open={showDiv}
+        onClose={() => setShowDiv(false)}
+        netTotal={dividends?.net}
+        rows={(dividends?.items ?? []).map((c, i) => ({ key: `${c.tradeId}${c.ex}${i}`, name: c.name, date: new Date(c.pay).toISOString().slice(0, 10), sub: `Ex ${new Date(c.ex).toLocaleDateString("de-DE")} · ${c.shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück`, gross: c.grossEur }))}
+      />
       {low && (
         <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-[14px] text-amber-200">
           Blacktrader handelt erst ab {SHIPMASTER.minCapital.toLocaleString("de-DE")} € Startkapital – darunter fressen die Gebühren den Gewinn.

@@ -6,6 +6,8 @@ import { displayCurrency } from "@/lib/client/eur";
 import { money } from "@/lib/analysis/persona";
 import type { LiveStatus } from "@/lib/client/market";
 import { lastPrice, potential, type ScanEntry } from "@/lib/client/scanner";
+import type { TradePlan } from "@/lib/analysis/score";
+import type { ReactNode } from "react";
 import type { ResolvedAsset } from "@/lib/types";
 import { COLOR_LABEL, signalStrength } from "./AssetCard";
 import { MiniChart } from "./MiniChart";
@@ -24,10 +26,26 @@ export interface TilePosition {
   open: number | null;
   openPct: number | null;
   onOpenPosition: () => void;
+  /** Einheit statt „Stück“ (Krypto: Kürzel) */
+  unit?: string;
+  /** Wartende Position: statt Wert/Gewinn diesen Text zeigen (z. B. „wartet auf Einstieg“) */
+  pendingText?: { title: string; sub?: string };
 }
 const eurT = (x: number, sign = false) => `${sign && x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
-export function EntryTile({ asset, entry, price, changePct, status, source, chart = false, showChance = false, position, onOpen }: { asset: ResolvedAsset; entry?: ScanEntry; price?: number; changePct?: number; status?: LiveStatus; source?: string; chart?: boolean; showChance?: boolean; position?: TilePosition; onOpen: () => void }) {
+export function EntryTile({
+  asset, entry, price, changePct, status, source, chart = false, showChance = false, position, onOpen,
+  heldColor, plan: planOverride, levels, footer, badgeExtra, gaugePrefix,
+}: {
+  asset: ResolvedAsset; entry?: ScanEntry; price?: number; changePct?: number; status?: LiveStatus; source?: string; chart?: boolean; showChance?: boolean; position?: TilePosition; onOpen: () => void;
+  /** Blacktrader-Depot: Farbe folgt dem Kauf (blau/grün), Plan und Eckwerte kommen aus dem Kauf */
+  heldColor?: "blau" | "gruen";
+  plan?: TradePlan | null;
+  levels?: { entry: string; stop: string; stopLabel?: string; target: string };
+  footer?: ReactNode;
+  badgeExtra?: ReactNode;
+  gaugePrefix?: string;
+}) {
   const b = entry?.best;
   const cur = displayCurrency(asset, asset.currency ?? entry?.asset.currency);
   const p = price ?? (entry ? lastPrice(entry) : undefined);
@@ -39,11 +57,17 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
         ? p >= b.zoneBottom ? 0 : ((b.zoneBottom - p) / p) * 100
         : p <= b.zoneTop ? 0 : ((p - b.zoneTop) / p) * 100
       : null;
-  const blue = b?.color === "blau";
-  const strength = b?.color === "gruen" || short ? signalStrength(b?.res) : null;
+  const ec = heldColor ?? b?.color;
+  const blue = ec === "blau";
+  const strength = !heldColor && (b?.color === "gruen" || short) ? signalStrength(b?.res) : null;
 
   // Chart: Kerzen des aktuellen Einstiegs, Wellenzählung, Zone (grün/blau), alte Einstiege grau
   const view = (() => {
+    if (entry && heldColor === "blau" && entry.longterm) return miniView(entry, undefined, entry.ltHorizon, entry.ltCandles ?? []);
+    if (entry && heldColor === "gruen") {
+      const h = (["medium", "long", "short"] as const).find((x) => entry.horizons[x]);
+      return h ? miniView(entry, entry.horizons[h]!.res.elliott.best, h, entry.horizons[h]!.candles) : null;
+    }
     if (!entry || !b) return null;
     // Alle Charts in Tageskerzen; Wellenpunkte aus Wochenkerzen auf die passende Tageskerze gelegt
     if ((b.color === "gruen" || short) && b.horizon) return miniView(entry, b.res?.elliott.best, b.horizon, entry.horizons[b.horizon]?.candles ?? []);
@@ -51,7 +75,8 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
     const h = (["medium", "long", "short"] as const).find((x) => entry.horizons[x]);
     return h ? miniView(entry, entry.horizons[h]!.res.elliott.best, h, entry.horizons[h]!.candles) : null;
   })();
-  const lt = view?.longterm ?? null;
+  const lt = heldColor === "gruen" ? null : view?.longterm ?? null;
+  const plan = planOverride !== undefined ? planOverride : heldColor ? null : b?.color === "gruen" || short ? b?.plan : null;
 
   // Mit Position (Buy & Hold) ist die Karte ein Container: oben deine Position (Antippen → Kauf/Verkauf), darunter die Analyse
   const Root = (position ? "div" : "button") as "button";
@@ -61,11 +86,17 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
         <div className="truncate text-[16px] font-semibold text-stone-50">{asset.name}</div>
         <div className="text-[13px] text-stone-400">
           {asset.symbol}
-          {position ? ` · ${position.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück · Ø ${eurT(position.avg)}` : p != null ? ` · ${money(p, cur)}` : ""}
+          {position ? (position.pendingText ? "" : ` · ${position.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} ${position.unit ?? "Stück"} · Ø ${eurT(position.avg)}`) : p != null ? ` · ${money(p, cur)}` : ""}
           {!position && changePct != null && <span className={changePct >= 0 ? "text-up" : "text-down"}>{` ${changePct >= 0 ? "+" : ""}${changePct.toFixed(2).replace(".", ",")} %`}</span>}
         </div>
       </div>
-      {position && (
+      {position && position.pendingText && (
+        <div className="shrink-0 text-right">
+          <div className="text-[15px] font-semibold text-amber-300">{position.pendingText.title}</div>
+          {position.pendingText.sub && <div className="num text-[13px] text-stone-400">{position.pendingText.sub}</div>}
+        </div>
+      )}
+      {position && !position.pendingText && (
         <div className="shrink-0 text-right">
           <div className="num text-[17px] font-semibold text-stone-50">{position.value != null ? eurT(position.value) : "–"}</div>
           <div className={`num text-[14px] ${position.open == null ? "text-stone-400" : position.open >= 0 ? "text-up" : "text-down"}`}>
@@ -77,7 +108,9 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
   );
   const badges = (
         <div className={position ? "flex flex-wrap items-center gap-x-3 gap-y-1" : "flex shrink-0 flex-col items-end gap-1"}>
-          {b ? (
+          {heldColor ? (
+            <span className={BADGE[heldColor]}>{heldColor === "blau" ? "Langfristig" : "Trade"}</span>
+          ) : b ? (
             <span className={BADGE[b.color]}>
               {COLOR_LABEL[b.color]}
               {strength != null ? ` · Stärke ${strength.toFixed(0)}` : ""}
@@ -85,14 +118,15 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
           ) : (
             <span className="badge-muted">rechnet …</span>
           )}
-          {b && b.color !== "gelb" && dist != null && <span className={dist === 0 ? "text-[13px] text-emerald-300" : "text-[13px] text-amber-300"}>{dist === 0 ? "jetzt in der Zone" : `noch ${dist.toFixed(1).replace(".", ",")} %`}</span>}
+          {badgeExtra}
+          {!heldColor && b && b.color !== "gelb" && dist != null && <span className={dist === 0 ? "text-[13px] text-emerald-300" : "text-[13px] text-amber-300"}>{dist === 0 ? "jetzt in der Zone" : `noch ${dist.toFixed(1).replace(".", ",")} %`}</span>}
           {showChance && entry && potential(entry) && <span className="num text-[13px] text-stone-300">Chance {short ? "−" : "+"}{Math.round(potential(entry)!.chancePct)} % bis zum Ziel</span>}
           {status && !b && <StatusPill status={status} source={source} />}
           {entry?.financeWeak && <span className="text-[13px] font-semibold text-red-300">Finanzen schwach</span>}
         </div>
   );
   return (
-    <Root onClick={onOpen} className={`card w-full p-3.5 text-left ${position ? "cursor-pointer" : ""} ${b ? EDGE[b.color] : ""}`}>
+    <Root onClick={onOpen} className={`card w-full p-3.5 text-left ${position ? "cursor-pointer" : ""} ${ec ? EDGE[ec] : ""}`}>
       <div className="flex items-start justify-between gap-2">
         {position ? (
           <button
@@ -113,17 +147,32 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
 
       {chart && view && view.candles.length > 4 && (
         <div className="mt-2">
-          <MiniChart candles={view.candles} plan={b?.color === "gruen" || short ? b?.plan : null} best={view.best} longterm={lt} past={(entry?.history.past ?? []).slice(0, 10)} height={84} from={view.from} />
+          <MiniChart candles={view.candles} plan={plan} best={view.best} longterm={lt} past={(entry?.history.past ?? []).slice(0, 10)} height={84} from={view.from} />
         </div>
       )}
 
       {b && entry && (
         <div className="mt-2">
-          <NeutralGauge score={scoreOf(entry)} prefix={GAUGE_PREFIX[b.color]} />
+          <NeutralGauge score={scoreOf(entry)} prefix={gaugePrefix ?? GAUGE_PREFIX[b.color]} />
         </div>
       )}
 
-      {b && b.color !== "gelb" ? (
+      {levels ? (
+        <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
+          <span>
+            <span className="label block">Einstieg</span>
+            {levels.entry}
+          </span>
+          <span className="text-red-300">
+            <span className="label block">{levels.stopLabel ?? "Stop"}</span>
+            {levels.stop}
+          </span>
+          <span className="text-emerald-300">
+            <span className="label block">Ziel</span>
+            {levels.target}
+          </span>
+        </div>
+      ) : b && b.color !== "gelb" ? (
         <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
           <span>
             <span className="label block">Einstieg</span>
@@ -139,6 +188,11 @@ export function EntryTile({ asset, entry, price, changePct, status, source, char
           </span>
         </div>
       ) : null}
+      {footer && (
+        <div className="cursor-default" onClick={(e) => e.stopPropagation()}>
+          {footer}
+        </div>
+      )}
     </Root>
   );
 }

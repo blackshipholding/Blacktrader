@@ -18,11 +18,16 @@ import { actions, useAppData, type Trade } from "@/lib/store/store";
 import { HORIZON_LABEL } from "@/lib/types";
 import { ACCOUNT, computeAccount, investedOf, SHIPMASTER } from "@/lib/client/account";
 import { CapitalBox } from "@/components/CapitalBox";
-import { creditsOfTrades, loadForPositions, useDividendBook } from "@/lib/client/dividendBook";
+import { creditsOfTrades, loadForPositions, lotsOfTrade, useDividendBook } from "@/lib/client/dividendBook";
+import { useAnnualDividendsGross } from "@/lib/client/annualDividends";
+import { DividendListSheet } from "@/components/DividendList";
+import { netOfTax } from "@/lib/analysis/dividends";
 import { BuyHold } from "@/components/BuyHold";
 import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
 import { PositionCard } from "@/components/PositionCard";
+import { EntryTile } from "@/components/EntryTile";
+import type { ResolvedAsset } from "@/lib/types";
 import { blueGroups } from "@/lib/client/position";
 import { GAUGE_PREFIX, HeldGauge } from "@/components/NeutralGauge";
 
@@ -62,6 +67,7 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
   const green = !isLt && t.direction === "long";
   // Grüne Trades bedienen ihre Knöpfe in der Karte (wie Blau) – kein Wischen mehr
   const swipe = !(green && t.status !== "closed");
+  if (green && t.status !== "closed") return <GreenTile t={t} price={price} onAction={onAction} onOpenAsset={onOpenAsset} nachkauf={nachkauf} />;
   return (
     <div className="relative">
       {/* Aktionen hinter der Karte (nur beim Wischen nach links sichtbar) */}
@@ -175,7 +181,76 @@ function TradeCard({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; pr
   );
 }
 
-/** Grüner Trade im Depot – gleicher Aufbau wie die blaue Positionskarte (nur Anzeige, Aktionen wie bisher) */
+/** Grüner Trade im Blacktrader-Depot – derselbe Aufbau wie eine Buy-&-Hold-Karte (Name, Position, Chart, Balken, Eckwerte) mit Käufen und Knöpfen darunter */
+function GreenTile({ t, price, onAction, onOpenAsset, nachkauf }: { t: Trade; price?: number; onAction: (t: Trade) => void; onOpenAsset: (t: Trade) => void; nachkauf?: ReactNode }) {
+  const scan = useScan();
+  const fx = eurPerUnit(tradeCurrency(t)) ?? 1;
+  const pending = t.status === "pending";
+  const cur = price ?? t.lastPrice;
+  const invested = investedOf(t);
+  const unit = t.kind === "crypto" ? t.symbol.replace(/-USD$/, "") : "Stück";
+  const qty = t.shares ?? (t.entry > 0 ? invested / (t.entry * (t.fxEntry ?? fx)) : 0);
+  const entryEur = qty > 0 ? invested / qty : t.entry * (t.fxEntry ?? fx);
+  const ret = !pending && cur != null && t.entry > 0 ? tradeReturnEur(t, cur) : null;
+  const profitEur = ret != null ? invested * (ret / 100) : null;
+  const value = ret != null ? invested + (profitEur ?? 0) : null;
+  const cc = tradeCurrency(t);
+  const stopHint = brokerStop(t);
+  const heldPlan = { direction: "long" as const, entry: t.entry, stop: t.stop, targets: t.targets, riskReward: 0, orderType: "market" as const, zoneStart: t.entry, zoneEnd: t.entry };
+  return (
+    <EntryTile
+      asset={{ symbol: t.symbol, name: t.name, kind: t.kind, yahooSymbol: t.yahooSymbol, binanceSymbol: t.binanceSymbol, currency: t.currency } as ResolvedAsset}
+      entry={scan.entries.find((x) => x.asset.kind === t.kind && x.asset.symbol === t.symbol)}
+      price={cur}
+      chart
+      heldColor="gruen"
+      plan={heldPlan}
+      gaugePrefix={pending ? GAUGE_PREFIX.gruen : GAUGE_PREFIX.held}
+      position={{
+        qty,
+        avg: entryEur,
+        value,
+        open: profitEur,
+        openPct: ret,
+        onOpenPosition: () => onOpenAsset(t),
+        unit,
+        pendingText: pending && cur != null && t.entry > 0 ? { title: "wartet auf Einstieg", sub: `noch ${((Math.abs(cur - t.entry) / cur) * 100).toFixed(1).replace(".", ",")} % bis zum Einstieg` } : pending ? { title: "wartet auf Einstieg" } : undefined,
+      }}
+      levels={{ entry: money(t.entry, cc), stop: t.stop > 0 ? money(t.stop, cc) : "kein Stop", target: t.targets[0] != null ? money(t.targets[0], cc) : "–" }}
+      badgeExtra={
+        <>
+          {t.promotedAt && <span className="badge-trade">Stop nachgezogen</span>}
+          <span className={pending ? "badge-wait" : "badge-muted"}>{pending ? "wartend" : "offen"}</span>
+          {t.unverified && <span className="badge-wait">Herkunft unklar</span>}
+        </>
+      }
+      onOpen={() => onOpenAsset(t)}
+      footer={
+        <div>
+          {stopHint && (
+            <div className={`mt-2 rounded-lg px-2.5 py-1.5 text-[14px] ${stopHint.adjust ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-stone-300"}`}>
+              {stopHint.adjust ? (
+                <>
+                  Stop bei flatex anpassen: {stopHint.setEur.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € → <b>{stopHint.nowEur.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b>{" "}
+                  <button className="ml-1 underline" onClick={() => actions.updateTrade(t.id, { brokerStopEur: stopHint.nowEur, brokerStopNotified: undefined })}>
+                    Erledigt
+                  </button>
+                </>
+              ) : (
+                <>Stop bei flatex: {stopHint.nowEur.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</>
+              )}
+            </div>
+          )}
+          {t.proposal && <ProposalBox t={t} price={price} />}
+          {nachkauf}
+          <GreenBody t={t} cur={cur} onAction={onAction} />
+        </div>
+      }
+    />
+  );
+}
+
+/** Grüner Trade im Depot – Käufe und Knöpfe (der Kopf steht in GreenTile) (nur Anzeige, Aktionen wie bisher) */
 function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t: Trade) => void }) {
   const fx = eurPerUnit(tradeCurrency(t)) ?? 1;
   const cc = tradeCurrency(t);
@@ -191,25 +266,6 @@ function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t:
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <div onClick={stop}>
-      <div className="num mt-2 grid grid-cols-3 gap-2 text-[14px]">
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">{pending ? "Geplant" : "Gekauft"}</span>
-          <span className="font-semibold text-stone-50">{qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} {unit}</span>
-        </div>
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">Investiert</span>
-          <span className="font-semibold text-stone-50">{pending ? eur(0) : eur(invested)}</span>
-        </div>
-        <div className="rounded-xl bg-white/5 px-2 py-1.5">
-          <span className="label block">Ø Einstieg</span>
-          <span className="font-semibold text-stone-50">{pending ? "–" : eur(entryEur)}</span>
-        </div>
-      </div>
-      <div className="num mt-2 flex flex-wrap justify-between gap-x-3 text-[14px]">
-        <span>Kurs {cur != null ? <b>{money(cur, cc)}</b> : "–"}</span>
-        {profitEur != null && <span className={profitEur >= 0 ? "text-up" : "text-down"}>{profitEur >= 0 ? "Gewinn" : "Verlust"} {eur(profitEur, true)}</span>}
-        <span className="text-stone-400">{t.stop > 0 ? `Stop ${money(t.stop, cc)}` : "kein Stop"}</span>
-      </div>
       {showBuys && <div className="num mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-[13px] text-emerald-100">
         <div className="mb-1 flex items-center justify-between font-semibold text-emerald-300">
           <span>Kauf · {eur(invested)}</span>
@@ -328,6 +384,17 @@ function BlacktraderDepot() {
   );
   const acc = rounds[rounds.length - 1];
   const roundStart = acc.from;
+  const [showDivs, setShowDivs] = useState(false);
+  // Erwartete Dividenden pro Jahr (netto) für deine offenen Aktien-Trades
+  const heldItems = useMemo(() => {
+    const m = new Map<string, { id: string; asset: Trade; qty: number }>();
+    for (const t of trades) {
+      const q = lotsOfTrade(t).filter((l) => l.to == null).reduce((a, l) => a + l.qty, 0);
+      if (q > 0) m.set(t.symbol, { id: t.symbol, asset: m.get(t.symbol)?.asset ?? t, qty: (m.get(t.symbol)?.qty ?? 0) + q });
+    }
+    return [...m.values()].map((x) => ({ id: x.id, asset: x.asset, qty: x.qty, priceEur: x.asset.lastPrice != null ? x.asset.lastPrice * (eurPerUnit(tradeCurrency(x.asset)) ?? 1) : undefined }));
+  }, [trades]);
+  const divGrossYear = useAnnualDividendsGross(heldItems);
   const divItems = useMemo(
     () => creditsOfTrades(trades.filter((t) => t.openedAt >= roundStart)).filter((c) => c.pay >= roundStart),
     [trades, roundStart, divVer], // eslint-disable-line react-hooks/exhaustive-deps
@@ -421,8 +488,15 @@ function BlacktraderDepot() {
       <div className="grid grid-cols-2 gap-2">
         <Tile label="Frei verfügbar" value={eur(acc.cash)} />
         <Tile label="In Trades gebunden" value={`${eur(acc.invested)} (${acc.open})`} />
+        <Tile label="Gewinn offen" value={eur(acc.openPl)} tone={acc.openPl >= 0 ? "up" : "down"} />
+        <Tile label="Gewinn verkauft" value={eur(acc.realized)} tone={acc.realized >= 0 ? "up" : "down"} />
         <Tile label="Gebühren bezahlt" value={eur(acc.fees)} />
         <Tile label="KESt bezahlt" value={eur(acc.tax)} />
+        <button className="card px-3 py-2.5 text-left active:bg-white/10" onClick={() => setShowDivs(true)}>
+          <div className="label">Dividende erhalten (netto)</div>
+          <div className="num text-[19px] font-semibold text-up">{eur(acc.dividends)}</div>
+        </button>
+        <Tile label="Dividenden/Jahr (netto)" value={eur(netOfTax(divGrossYear))} />
         <Tile label="Trefferquote" value={acc.closed ? `${Math.round((acc.wins / acc.closed) * 100)} % (${acc.wins}/${acc.closed})` : "–"} />
         <Tile label="Abgeschlossene Trades" value={String(acc.closed)} />
       </div>
@@ -573,6 +647,12 @@ function BlacktraderDepot() {
           </div>
         )}
       </Sheet>
+      <DividendListSheet
+        open={showDivs}
+        onClose={() => setShowDivs(false)}
+        netTotal={acc.dividends}
+        rows={divItems.map((c, i) => ({ key: `${c.tradeId}${c.ex}${i}`, name: c.name, date: new Date(c.pay).toISOString().slice(0, 10), sub: `Ex ${new Date(c.ex).toLocaleDateString("de-DE")} · ${c.shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück`, gross: c.grossEur }))}
+      />
       {sheet}
     </div>
   );

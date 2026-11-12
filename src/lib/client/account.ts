@@ -115,6 +115,9 @@ export interface RoundSummary {
   /** Dividenden dieser Runde: brutto und netto nach KESt (am Auszahlungstag gutgeschrieben) */
   dividendsGross: number;
   dividends: number;
+  /** Kursgewinn der geschlossenen Trades (ohne Gebühren/KESt) und offener Gewinn/Verlust der offenen Positionen */
+  realized: number;
+  openPl: number;
   closed: number;
   wins: number;
   open: number;
@@ -152,6 +155,7 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
   let wins = 0;
   let divGross = 0;
   let divNet = 0;
+  let realizedPl = 0;
   const open = new Set<Trade>();
   const curve: RoundSummary["curve"] = [];
   for (const e of ev) {
@@ -178,6 +182,7 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
     const r = t.returnPct ?? 0;
     const st = stakeOf(t);
     const g = (investedOf(t) * r) / 100;
+    realizedPl += g;
     const f = sellOrders(t) * ACCOUNT.fee;
     cash += st + g - f;
     fees += f;
@@ -212,6 +217,8 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
     tax,
     dividendsGross: divGross,
     dividends: divNet,
+    realized: realizedPl,
+    openPl: equity - cash - invested,
     closed,
     wins,
     open: open.size,
