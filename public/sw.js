@@ -1,5 +1,5 @@
 // Service Worker: App-Shell offline verfügbar, API-Aufrufe immer frisch aus dem Netz.
-const CACHE = "bsh-shell-v9";
+const CACHE = "bsh-shell-v10";
 const SHELL = ["/", "/chancen", "/watchlist", "/depot", "/mehr", "/echochart", "/einstellungen", "/manifest.webmanifest", "/icon-192.png", "/background.webp", "/background.jpg"];
 
 self.addEventListener("install", (e) => {
