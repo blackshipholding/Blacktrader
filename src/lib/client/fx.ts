@@ -23,17 +23,21 @@ if (typeof window !== "undefined") {
 let last = 0;
 let running: Promise<void> | null = null;
 
-/** Aktuelle Kurse laden (höchstens alle 30 Minuten). Kurs = Wert von 1 Einheit in Euro. */
+/** Aktuelle Kurse laden (höchstens jede Minute, Live-Kurs). Kurs = Wert von 1 Einheit in Euro. */
 export function refreshFx(force = false): Promise<void> {
-  if (!force && Date.now() - last < 30 * 60e3) return running ?? Promise.resolve();
+  if (!force && Date.now() - last < 55e3) return running ?? Promise.resolve();
   last = Date.now();
   running = (async () => {
     const out: Record<string, number> = {};
     await Promise.all(
       PAIRS.map(async ([cur, sym]) => {
         try {
-          const r = await api.candles({ kind: "stock", symbol: sym, name: sym, yahooSymbol: sym }, "1d", 30 * 60e3);
-          const close = r.candles.at(-1)?.close;
+          let close: number | undefined;
+          try {
+            close = (await api.quote({ kind: "stock", symbol: sym, name: sym, yahooSymbol: sym } as never)).price;
+          } catch {
+            close = (await api.candles({ kind: "stock", symbol: sym, name: sym, yahooSymbol: sym }, "1d", 30 * 60e3)).candles.at(-1)?.close;
+          }
           if (close && close > 0) out[cur] = 1 / close; // EURUSD = Dollar je Euro → 1 Dollar = 1/EURUSD Euro
         } catch {
           /* nächster Versuch */

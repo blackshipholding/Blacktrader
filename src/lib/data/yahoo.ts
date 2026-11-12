@@ -40,14 +40,14 @@ interface ChartResponse {
   };
 }
 
-async function chart(symbol: string, interval: string, range: string): Promise<ChartResponse> {
+async function chart(symbol: string, interval: string, range: string, prePost = false): Promise<ChartResponse> {
   let lastErr: unknown;
   for (const base of BASES) {
     try {
       // „days:N“ = genauer Zeitraum (bei range=max liefert Yahoo statt Wochen- nur Quartalskerzen)
       const now = Math.floor(Date.now() / 1000);
       const span = range.startsWith("days:") ? `period1=${now - Number(range.slice(5)) * 86400}&period2=${now}` : `range=${range}`;
-      const url = `${base}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&${span}&includePrePost=false&events=div%2Csplit`;
+      const url = `${base}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&${span}&includePrePost=${prePost}&events=div%2Csplit`;
       const data = await fetchJson<ChartResponse>(url);
       if (data.chart.error) throw new UpstreamError(`Yahoo: ${data.chart.error.description ?? "Fehler"}`, 404);
       return data;
@@ -134,21 +134,39 @@ export interface YahooMeta {
 
 export async function yahooQuote(symbol: string): Promise<Quote & { meta: YahooMeta }> {
   return cached(`yq:${symbol}`, 10e3, async () => {
-    const data = await chart(symbol, "5m", "1d");
+    // Mit Vor- und Nachbörse (Nutzer 12.11.2026: möglichst Live-Kurs rund um die Uhr)
+    const data = await chart(symbol, "5m", "1d", true);
     const r = data.chart.result?.[0];
     if (!r || r.meta.regularMarketPrice == null) throw new UpstreamError("Yahoo: kein Kurs", 404);
     const m = r.meta;
     const prev = m.previousClose ?? m.chartPreviousClose ?? m.regularMarketPrice!;
-    const time = m.regularMarketTime ?? Math.floor(Date.now() / 1000);
+    let price = m.regularMarketPrice!;
+    let time = m.regularMarketTime ?? Math.floor(Date.now() / 1000);
+    let source = "Yahoo Finance";
+    // Aktien/ETFs: letzter Kurs außerhalb der regulären Zeit (Vor-/Nachbörse), falls neuer als der reguläre
+    if ((m.instrumentType === "EQUITY" || m.instrumentType === "ETF") && r.timestamp?.length) {
+      const closes = r.indicators.quote[0]?.close ?? [];
+      for (let i = closes.length - 1; i >= 0; i--) {
+        const c = closes[i];
+        if (c != null && c > 0) {
+          if (r.timestamp[i] > time + 60) {
+            price = c;
+            time = r.timestamp[i];
+            source = "Yahoo Vor-/Nachbörse";
+          }
+          break;
+        }
+      }
+    }
     return {
       symbol,
-      price: m.regularMarketPrice!,
-      changePct: prev ? ((m.regularMarketPrice! - prev) / prev) * 100 : 0,
+      price,
+      changePct: prev ? ((price - prev) / prev) * 100 : 0,
       currency: m.currency,
       time,
       // Yahoo liefert für viele Börsen 15+ Minuten verzögerte Kurse; Krypto ist nahezu Echtzeit.
       delayed: m.instrumentType !== "CRYPTOCURRENCY" || Date.now() / 1000 - time > 120,
-      source: "Yahoo Finance",
+      source,
       meta: {
         symbol: m.symbol,
         name: m.longName ?? m.shortName ?? m.symbol,

@@ -11,6 +11,7 @@ import { api } from "./api";
 
 export interface BourseOption { suffix: string; label: string }
 export const EXCHANGES: BourseOption[] = [
+  { suffix: "", label: "Aus – US-Kurs × Dollar/Euro (Standard)" },
   { suffix: ".SG", label: "Börse Stuttgart" },
   { suffix: ".F", label: "Frankfurt" },
   { suffix: ".DE", label: "Xetra" },
@@ -117,7 +118,7 @@ export function euroQuote(a: AssetRef, nativeCurrency?: string, maxAgeMs = 20e3)
         const pair = a.binanceSymbol.replace(/USDT$/i, "EUR");
         const q = await api.quote({ binanceSymbol: pair } as never);
         if (q.price > 0 && fx) out = { eur: q.price, native: q.price / fx, source: "Binance EUR", time: q.time };
-      } else if (a.kind === "stock" && nativeCurrency && nativeCurrency !== "EUR" && !isEurSymbol(a.yahooSymbol ?? a.symbol) && !/[=^]/.test(a.yahooSymbol ?? a.symbol)) {
+      } else if (ex.suffix && a.kind === "stock" && nativeCurrency && nativeCurrency !== "EUR" && !isEurSymbol(a.yahooSymbol ?? a.symbol) && !/[=^]/.test(a.yahooSymbol ?? a.symbol)) {
         const sym = await findListing(a, ex.suffix);
         if (sym) {
           const q = await api.quote({ kind: "stock", symbol: sym, name: sym, yahooSymbol: sym } as never);
@@ -172,6 +173,18 @@ export async function probeBinanceEur(binanceSymbol?: string): Promise<{ price: 
   try {
     const q = await api.quote({ binanceSymbol: pair } as never);
     return q.price > 0 ? { price: q.price, time: q.time } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Nur für die Testseite: Kurs der tokenisierten Aktie bei Kraken (USD), null = nicht verfügbar */
+export async function probeXStock(symbol: string): Promise<{ price: number; time?: number } | null> {
+  try {
+    const res = await fetch(`/api/xstock?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { price?: number; time?: number };
+    return j.price && j.price > 0 ? { price: j.price, time: j.time } : null;
   } catch {
     return null;
   }

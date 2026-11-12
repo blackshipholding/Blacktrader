@@ -10,7 +10,7 @@ vi.mock("../src/lib/client/api", () => ({
   },
 }));
 
-import { euroQuote } from "../src/lib/client/euroPrice";
+import { euroQuote, setExchange } from "../src/lib/client/euroPrice";
 
 describe("Euro-Live-Kurs", () => {
   beforeEach(() => setFxRates({ USD: 0.9, USDT: 0.9 }));
@@ -21,10 +21,17 @@ describe("Euro-Live-Kurs", () => {
     expect(q!.native * 0.9).toBeCloseTo(1820, 6);
     expect(q?.source).toBe("Binance EUR");
   });
-  it("Aktie (USD): Euro-Kurs der deutschen Börse", async () => {
+  it("Aktie (USD): Standard = kein deutscher Börsenkurs (US-Kurs × Dollar/Euro bleibt)", async () => {
+    expect(await euroQuote({ kind: "stock", symbol: "AAPL", name: "Apple", isin: "US0378331005" }, "USD", 0)).toBeNull();
+  });
+  it("Aktie (USD): mit gewählter deutscher Börse Euro-Kurs dieser Börse", async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => void (store[k] = v), removeItem: (k: string) => void delete store[k] });
+    setExchange(".SG");
     const q = await euroQuote({ kind: "stock", symbol: "AAPL", name: "Apple", isin: "US0378331005" }, "USD", 0);
     expect(q?.eur).toBe(90);
     expect(q?.source).toBe("Börse Stuttgart");
+    vi.unstubAllGlobals();
   });
   it("Rohstoff/Index: kein Euro-Kurs → null (bisheriger Kurs bleibt)", async () => {
     expect(await euroQuote({ kind: "commodity", symbol: "GC=F", name: "Gold", yahooSymbol: "GC=F" }, "USD", 0)).toBeNull();

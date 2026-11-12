@@ -135,7 +135,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const off = onFx(() => setFxTick((x) => x + 1));
     void refreshFx();
-    const t = setInterval(() => void refreshFx(), 30 * 60e3);
+    const t = setInterval(() => void refreshFx(), 60e3);
     return () => {
       off();
       clearInterval(t);
