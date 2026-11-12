@@ -1,5 +1,7 @@
 "use client";
 // Suche nach ISIN, Symbol oder Name (z. B. "Apple") mit Vorschlagsliste.
+import { useLiveQuote } from "@/lib/client/liveQuote";
+import { money } from "@/lib/analysis/persona";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { looksLikeIsin, validateIsin } from "@/lib/analysis/isin";
 import { haptic } from "@/lib/client/alerts";
@@ -11,6 +13,18 @@ import { IconSearch } from "./Icons";
 const kindLabel = (c: ResolvedAsset) => (c.kind === "crypto" ? "Krypto" : c.kind === "commodity" ? "Rohstoff" : c.exchange ?? "Aktie/ETF");
 
 /** `onPick`: statt zur Watchlist hinzufügen den gewählten Wert zurückgeben (z. B. Buy & Hold). */
+/** Live-Kurs eines Suchtreffers (Yahoo/Binance) – Nutzer 12.11.2026: überall Live-Kurse, auch in der Suchliste */
+function CandidatePrice({ c }: { c: ResolvedAsset }) {
+  const q = useLiveQuote(c, true);
+  if (!q) return <span className="num text-[13px] text-stone-500">Kurs lädt …</span>;
+  return (
+    <span className="num text-right">
+      <span className="block text-[14px] font-semibold text-stone-100">{money(q.price, q.currency)}</span>
+      <span className={`block text-[12px] ${q.changePct >= 0 ? "text-up" : "text-down"}`}>{`${q.changePct >= 0 ? "+" : ""}${q.changePct.toFixed(2).replace(".", ",")} %`}</span>
+    </span>
+  );
+}
+
 export function AddAsset({ onPick, actionLabel = "+ Hinzufügen" }: { onPick?: (c: ResolvedAsset) => void; actionLabel?: string } = {}) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -100,7 +114,10 @@ export function AddAsset({ onPick, actionLabel = "+ Hinzufügen" }: { onPick?: (
                     {c.symbol} · {kindLabel(c)}
                   </span>
                 </span>
-                <span className="text-[13px] text-gold">{actionLabel}</span>
+                <span className="flex shrink-0 items-center gap-3">
+                  <CandidatePrice c={c} />
+                  <span className="text-[13px] text-gold">{actionLabel}</span>
+                </span>
               </button>
             </li>
           ))}
