@@ -12,6 +12,7 @@ import { SHIP_PROTECT } from "../analysis/longterm";
 import type { AppData, Trade } from "../store/store";
 import { KestYear } from "../analysis/kest";
 import { getData, normalizeCapital } from "../store/store";
+import { bookVersion, creditsOfTrades } from "./dividendBook";
 
 /** Shipmaster 0.1 – feste Geld-Regeln */
 export const SHIPMASTER = Object.freeze({ version: "0.2", first: 0.1, add: 0.02, addMax: 2, minCapital: 10000, over: 0.1, protectGain: SHIP_PROTECT.gain });
@@ -36,16 +37,16 @@ export function capitalNow(): number {
 export const belowMinCapital = (capital = capitalNow()) => capital < SHIPMASTER.minCapital;
 
 /** Kontostand der aktuellen Runde (freies Geld + offene Positionen zum Kaufpreis) – je Datenstand zwischengespeichert */
-const valueCache = new WeakMap<object, number>();
+const valueCache = new WeakMap<object, { v: number; ver: number }>();
 export function accountValueNow(): number {
   try {
     const d: AppData = getData();
     const hit = valueCache.get(d);
-    if (hit != null) return hit;
+    if (hit != null && hit.ver === bookVersion()) return hit.v;
     const rounds = computeAccount(d.trades, d.accountResets, () => null);
     const r = rounds[rounds.length - 1];
     const v = Math.max(0, r.cash + r.invested);
-    valueCache.set(d, v);
+    valueCache.set(d, { v, ver: bookVersion() });
     return v;
   } catch {
     return capitalNow();
@@ -111,6 +112,9 @@ export interface RoundSummary {
   profitPct: number;
   fees: number;
   tax: number;
+  /** Dividenden dieser Runde: brutto und netto nach KESt (am Auszahlungstag gutgeschrieben) */
+  dividendsGross: number;
+  dividends: number;
   closed: number;
   wins: number;
   open: number;
@@ -127,11 +131,17 @@ export interface RoundSummary {
  */
 export function computeRound(trades: Trade[], from: number, to: number | undefined, round: number, openReturnEur: (t: Trade) => number | null): RoundSummary {
   const inRound = trades.filter((t) => countsForAccount(t) && t.openedAt >= from && (to == null || t.openedAt < to));
-  type Ev = { at: number; kind: 0 | 1; t: Trade };
+  type Ev = { at: number; kind: 0 | 1 | 2; t: Trade; gross?: number };
   const ev: Ev[] = [];
   for (const t of inRound) {
     ev.push({ at: t.openedAt, kind: 1, t });
     if (t.status === "closed" && t.closedAt != null) ev.push({ at: t.closedAt, kind: 0, t });
+  }
+  // Dividenden: am Auszahlungstag brutto aufs Konto, KESt 27,5 % sofort (Verlusttopf wie bei Gewinnen), keine Gebühr
+  const byId = new Map(inRound.map((t) => [t.id, t]));
+  for (const c of creditsOfTrades(inRound)) {
+    const t = byId.get(c.tradeId);
+    if (t && c.pay >= from && (to == null || c.pay < to) && c.grossEur > 0) ev.push({ at: c.pay, kind: 2, t, gross: c.grossEur });
   }
   ev.sort((a, b) => a.at - b.at || a.kind - b.kind);
   let cash: number = ACCOUNT.start;
@@ -140,10 +150,20 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
   const kest = new KestYear(ACCOUNT.tax);
   let closed = 0;
   let wins = 0;
+  let divGross = 0;
+  let divNet = 0;
   const open = new Set<Trade>();
   const curve: RoundSummary["curve"] = [];
   for (const e of ev) {
     const t = e.t;
+    if (e.kind === 2) {
+      const k = kest.settle(e.gross ?? 0, yearOf(e.at));
+      cash += (e.gross ?? 0) - k;
+      tax += k;
+      divGross += e.gross ?? 0;
+      divNet += (e.gross ?? 0) - k;
+      continue;
+    }
     if (e.kind === 1) {
       // Wartende Orders reservieren das Geld schon (wie bei der Bank); Gebühr erst bei Ausführung
       const executed = t.status !== "pending";
@@ -190,6 +210,8 @@ export function computeRound(trades: Trade[], from: number, to: number | undefin
     profitPct: ((equity - ACCOUNT.start) / ACCOUNT.start) * 100,
     fees,
     tax,
+    dividendsGross: divGross,
+    dividends: divNet,
     closed,
     wins,
     open: open.size,

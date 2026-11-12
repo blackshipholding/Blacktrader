@@ -8,8 +8,8 @@ import { heldShares } from "./longterm";
 import type { Trade } from "../store/store";
 import type { Fundamentals } from "../types";
 
-export const DIV_TAX = 0.275;
-export const netOfTax = (gross: number) => gross * (1 - DIV_TAX);
+import { DIV_TAX, netOfTax } from "../analysis/dividends";
+export { DIV_TAX, netOfTax };
 
 /** Jahresdividende je Anteil in Euro (oder null, wenn keine Dividende bekannt) */
 export function dividendPerShareEur(f: Fundamentals | null | undefined, priceNative?: number): number | null {

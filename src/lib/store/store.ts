@@ -7,6 +7,7 @@ import { HORIZON_DEFAULT_INTERVAL, type Horizon, type Interval, type ResolvedAss
 import { eurPerUnit } from "../fx";
 import { tradeCurrency } from "../client/eur";
 import type { Holding, HoldingTx } from "../client/holdings";
+import type { DivEdit } from "../analysis/dividends";
 import type { ChanceLogEntry } from "../client/chanceLog";
 import { allHistories, restoreHistories } from "../client/entries";
 import { collectLearnData, restoreLearnData } from "../client/learnData";
@@ -176,6 +177,8 @@ export interface AppData {
   holdings: Holding[];
   /** Live-Bilanz aller Chancen (ab dem ersten Erscheinen mitgeschrieben) */
   chanceLog: ChanceLogEntry[];
+  /** Dividenden von Hand geändert/ergänzt, je Wert („stock:AAPL“) – gilt für beide Depots */
+  divEdits: Record<string, DivEdit[]>;
   /** Wochenbericht: Stand beim letzten Lesen (Vergleichsbasis) */
   weekly?: { at: number; equity: number; ziel: number; stop: number; bhValue?: number } | null;
 }
@@ -208,7 +211,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keys: { finnhub: "", alphavantage: "", openfigi: "", llm: "", llmProvider: "anthropic", llmModel: "" },
 };
 
-const DEFAULT_DATA: AppData = { version: 1, watchlist: [], trades: [], settings: DEFAULT_SETTINGS, signals: {}, migrations: [], migrationNotice: null, accountResets: [], holdings: [], chanceLog: [] };
+const DEFAULT_DATA: AppData = { version: 1, watchlist: [], trades: [], settings: DEFAULT_SETTINGS, signals: {}, migrations: [], migrationNotice: null, accountResets: [], holdings: [], chanceLog: [], divEdits: {} };
 export const BACKUP_PREFIX = "black-ship-trading-analyst:backup:";
 const KEY = "black-ship-trading-analyst:v1";
 
@@ -239,6 +242,7 @@ function sanitize(raw: unknown): AppData {
     accountResets: Array.isArray(d.accountResets) ? d.accountResets.filter((x) => Number.isFinite(x)) : [],
     weekly: d.weekly && typeof d.weekly.at === "number" ? d.weekly : null,
     chanceLog: Array.isArray(d.chanceLog) ? d.chanceLog.filter((x) => x && x.key && x.symbol) : [],
+    divEdits: d.divEdits && typeof d.divEdits === "object" ? Object.fromEntries(Object.entries(d.divEdits).map(([k, v]) => [k, Array.isArray(v) ? v.filter((e) => e && Number.isFinite(e.ex)) : []])) : {},
     holdings: Array.isArray(d.holdings) ? d.holdings.filter((h) => h && h.id && h.symbol).map((h) => ({ ...h, txs: Array.isArray(h.txs) ? h.txs.filter((t) => t && t.qty > 0 && t.price > 0) : [] })) : [],
     settings: {
       ...DEFAULT_SETTINGS,
@@ -492,6 +496,16 @@ export const actions = {
   /** Buy & Hold leeren */
   clearHoldings() {
     update((d) => ({ ...d, holdings: [] }));
+  },
+  /** Dividende ändern/ergänzen (je Wert und Ex-Tag); ohne Felder = Korrektur zurücknehmen */
+  setDivEdit(key: string, edit: DivEdit) {
+    update((d) => {
+      const list = (d.divEdits[key] ?? []).filter((e) => e.ex !== edit.ex);
+      return { ...d, divEdits: { ...d.divEdits, [key]: [...list, edit] } };
+    });
+  },
+  clearDivEdit(key: string, ex: number) {
+    update((d) => ({ ...d, divEdits: { ...d.divEdits, [key]: (d.divEdits[key] ?? []).filter((e) => e.ex !== ex) } }));
   },
   removeHolding(id: string) {
     update((d) => ({ ...d, holdings: d.holdings.filter((x) => x.id !== id) }));

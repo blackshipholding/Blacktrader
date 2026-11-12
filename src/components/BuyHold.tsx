@@ -12,6 +12,7 @@ import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
 import { toEur } from "@/lib/fx";
 import { dividendPerShareEur, netOfTax } from "@/lib/client/dividends";
+import { creditsOfHolding, holdingSummary, loadForPositions, useDividendBook } from "@/lib/client/dividendBook";
 import { protectDue } from "@/lib/analysis/longterm";
 import { actions, useAppData } from "@/lib/store/store";
 import type { Horizon, ResolvedAsset } from "@/lib/types";
@@ -96,6 +97,12 @@ export function BuyHold() {
     void runScan(missing ? 60e3 : undefined);
   }, [missing]);
   const prices = usePrices(holdings);
+  // Dividenden deiner Aktien: laden, am Auszahlungstag gutgeschrieben (von Hand eingetragene gehen vor)
+  const divVer = useDividendBook();
+  useEffect(() => {
+    loadForPositions([], holdings);
+  }, [holdings]);
+  const [showDivs, setShowDivs] = useState(false);
   // Erwartete Dividenden pro Jahr (brutto, €) je gehaltenem Wert – aus den Firmenzahlen (Yahoo), nur Aktien
   const [divGross, setDivGross] = useState<Record<string, number>>({});
   const divKey = holdings.filter((h) => h.kind === "stock" && summarizeHolding(h).qty > 0).map((h) => `${h.id}:${summarizeHolding(h).qty}`).join(",");
@@ -127,13 +134,13 @@ export function BuyHold() {
   const rows = useMemo(
     () =>
       holdings.map((h) => {
-        const s = summarizeHolding(h);
+        const s = holdingSummary(h);
         const price = prices[h.id];
         const value = price != null ? s.qty * price : null;
         const open = value != null ? value - s.cost : null;
         return { h, s, price, value, open };
       }),
-    [holdings, prices],
+    [holdings, prices, divVer], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const held = rows.filter((r) => r.s.qty > 0);
   const sold = rows.filter((r) => r.s.qty === 0);
@@ -165,20 +172,20 @@ export function BuyHold() {
           <div className={`num text-[17px] font-semibold ${realized >= 0 ? "text-up" : "text-down"}`}>{eur(realized, true)}</div>
         </div>
         <div className="card px-3 py-2.5">
-          <div className="label">Dividenden (brutto)</div>
-          <div className="num text-[17px] font-semibold text-stone-50">{eur(dividends)}</div>
-        </div>
-        <div className="card px-3 py-2.5">
-          <div className="label">Dividenden/Jahr (netto)</div>
-          <div className="num text-[17px] font-semibold text-stone-50">{eur(netOfTax(Object.values(divGross).reduce((a, b) => a + b, 0)))}</div>
-        </div>
-        <div className="card px-3 py-2.5">
           <div className="label">Gebühren</div>
           <div className="num text-[17px] font-semibold text-stone-50">{eur(fees)}</div>
         </div>
         <div className="card px-3 py-2.5">
           <div className="label">KESt (geschätzt)</div>
           <div className="num text-[17px] font-semibold text-stone-50">{eur(tax)}</div>
+        </div>
+        <button className="card px-3 py-2.5 text-left active:bg-white/10" onClick={() => setShowDivs(true)}>
+          <div className="label">Dividende erhalten (netto)</div>
+          <div className="num text-[17px] font-semibold text-up">{eur(netOfTax(dividends))}</div>
+        </button>
+        <div className="card px-3 py-2.5">
+          <div className="label">Dividenden/Jahr (netto)</div>
+          <div className="num text-[17px] font-semibold text-stone-50">{eur(netOfTax(Object.values(divGross).reduce((a, b) => a + b, 0)))}</div>
         </div>
       </div>
 
@@ -220,6 +227,33 @@ export function BuyHold() {
       <p className="text-[13px] text-stone-500">KESt geschätzt wie in Österreich: 27,5 % auf verkaufte Gewinne (gleitender Durchschnittspreis, Gebühren nicht abziehbar, Gewinne und Verluste eines Jahres verrechnet). Maßgeblich ist die Abrechnung deiner Bank.</p>
 
       <TxSheet form={form} onClose={() => setForm(null)} />
+      <Sheet open={showDivs} onClose={() => setShowDivs(false)} title="Dividenden (netto nach 27,5 % KESt)">
+        <div className="space-y-2 text-[15px]">
+          {rows.every((r) => r.s.dividends <= 0) && <p className="text-stone-300">Noch keine Dividende ausgezahlt.</p>}
+          {rows.flatMap((r) => [
+            ...creditsOfHolding(r.h).map((c) => ({ key: `${r.h.id}a${c.ex}`, name: r.h.name, date: c.date, sub: `Ex ${new Date(c.ex).toLocaleDateString("de-DE")} · ${c.shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück`, gross: c.grossEur, hand: false })),
+            ...r.h.txs.filter((t) => t.type === "div").map((t) => ({ key: `${r.h.id}m${t.id}`, name: r.h.name, date: t.date, sub: "von Hand eingetragen", gross: t.price, hand: true })),
+          ])
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .map((c) => (
+              <div key={c.key} className="num flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
+                <span>
+                  <b>{c.name}</b>
+                  <span className="block text-[13px] text-stone-400">
+                    {new Date(c.date).toLocaleDateString("de-DE")} · {c.sub}
+                  </span>
+                </span>
+                <span className="text-up">{eur(netOfTax(c.gross))}</span>
+              </div>
+            ))}
+          {dividends > 0 && (
+            <div className="num flex justify-between border-t border-white/10 pt-2 font-semibold">
+              <span>Summe netto</span>
+              <span className="text-up">{eur(netOfTax(dividends))}</span>
+            </div>
+          )}
+        </div>
+      </Sheet>
       {assetSheet}
 
       <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail?.name ?? ""}>

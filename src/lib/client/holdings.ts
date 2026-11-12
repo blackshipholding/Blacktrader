@@ -55,7 +55,8 @@ export interface HoldingSummary {
 const ORDER = { buy: 0, div: 1, sell: 2 } as const;
 const byDate = (a: HoldingTx, b: HoldingTx) => a.date.localeCompare(b.date) || ORDER[a.type] - ORDER[b.type];
 
-export function summarizeHolding(h: Pick<Holding, "txs">): HoldingSummary {
+/** `auto` = automatische Dividenden (Datum der Gutschrift, brutto in €) zusätzlich zu den von Hand eingetragenen */
+export function summarizeHolding(h: Pick<Holding, "txs">, auto: { date: string; gross: number }[] = []): HoldingSummary {
   let qty = 0;
   let cost = 0;
   let realized = 0;
@@ -91,6 +92,11 @@ export function summarizeHolding(h: Pick<Holding, "txs">): HoldingSummary {
         cost = 0;
       }
     }
+  }
+  for (const a of auto) {
+    dividends += a.gross;
+    const y = a.date.slice(0, 4);
+    realizedByYear[y] = (realizedByYear[y] ?? 0) + a.gross;
   }
   const tax = Object.values(realizedByYear).reduce((s, g) => s + Math.max(0, g) * HOLD_TAX, 0);
   return { qty, avg: qty > 0 ? cost / qty : 0, cost, realized, fees, tax, realizedByYear, invested, dividends };

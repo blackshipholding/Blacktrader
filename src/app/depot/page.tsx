@@ -18,6 +18,7 @@ import { actions, useAppData, type Trade } from "@/lib/store/store";
 import { HORIZON_LABEL } from "@/lib/types";
 import { ACCOUNT, computeAccount, investedOf, SHIPMASTER } from "@/lib/client/account";
 import { CapitalBox } from "@/components/CapitalBox";
+import { creditsOfTrades, loadForPositions, useDividendBook } from "@/lib/client/dividendBook";
 import { BuyHold } from "@/components/BuyHold";
 import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
@@ -312,16 +313,25 @@ function BlacktraderDepot() {
   const [action, setAction] = useState<Trade | null>(null);
   const [exitPrice, setExitPrice] = useState("");
 
+  // Dividenden deiner Aktien-Trades: laden, am Auszahlungstag aufs Konto (CapitalBox „Dividende“)
+  const divVer = useDividendBook();
+  useEffect(() => {
+    loadForPositions(trades, []);
+  }, [trades]);
   const rounds = useMemo(
     () =>
       computeAccount(trades, resets, (t) => {
         const p = live[instrumentKey(t)]?.price ?? t.lastPrice;
         return p ? tradeReturnEur(t, p) : null;
       }),
-    [trades, resets, live],
+    [trades, resets, live, divVer], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const acc = rounds[rounds.length - 1];
   const roundStart = acc.from;
+  const divItems = useMemo(
+    () => creditsOfTrades(trades.filter((t) => t.openedAt >= roundStart)).filter((c) => c.pay >= roundStart),
+    [trades, roundStart, divVer], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   // „Nachkauf möglich“ nur einmal je Wert (bei der ältesten offenen Position)
   const scan = useScan();
   useEffect(() => {
@@ -379,7 +389,7 @@ function BlacktraderDepot() {
         </div>
       )}
 
-      <CapitalBox capital={capital} accountValue={acc.cash + acc.invested} />
+      <CapitalBox capital={capital} accountValue={acc.cash + acc.invested} dividends={{ net: acc.dividends, gross: acc.dividendsGross, items: divItems }} />
 
       {acc.broke ? (
         <div className="card edge-short space-y-2 p-4 text-[15px]">

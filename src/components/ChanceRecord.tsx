@@ -25,6 +25,16 @@ export function ChanceRecord() {
       <div className="num mt-0.5 text-[13px] text-stone-400">
         {s.total} Chancen · <span className="text-emerald-300">{s.ziel} Ziel</span> · <span className="text-red-300">{s.stop} Stop</span> · {s.verpasst} verpasst · {s.open} laufen
       </div>
+      {(() => {
+        const withDiv = log.filter((x) => x.divPct != null && x.divPct > 0);
+        if (!withDiv.length) return null;
+        const avg = withDiv.reduce((a, x) => a + (x.divPct ?? 0), 0) / withDiv.length;
+        return (
+          <div className="num mt-0.5 text-[13px] text-stone-300">
+            Dividenden bei {withDiv.length} Chancen: Ø +{avg.toFixed(1).replace(".", ",")} % (netto +{(avg * 0.725).toFixed(1).replace(".", ",")} %)
+          </div>
+        );
+      })()}
       {open && (
         <div className="mt-2 space-y-0.5 text-[13px] text-stone-300">
           {(["gruen", "blau", "rot"] as const).map((c) => {

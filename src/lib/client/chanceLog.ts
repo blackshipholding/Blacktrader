@@ -6,6 +6,8 @@ import type { Candle } from "../types";
 import { actions, getData } from "../store/store";
 import { notify } from "./alerts";
 import { liveCheck } from "./liveCheck";
+import { creditsFor } from "../analysis/dividends";
+import { eventsFor, loadDividends } from "./dividendBook";
 
 export type ChanceResult = "ziel" | "stop" | "verpasst";
 
@@ -28,6 +30,8 @@ export interface ChanceLogEntry {
   entered?: number;
   result?: ChanceResult;
   at?: number;
+  /** Dividenden zwischen Einstieg und Ergebnis (bzw. heute), brutto in % des Einstiegskurses – nur Aktien; Treffer (Ziel/Stop) bleiben unverändert */
+  divPct?: number;
 }
 
 export interface ChanceCandidate {
@@ -92,6 +96,22 @@ export function updateChanceLog(cands: ChanceCandidate[], now = Math.floor(Date.
     const next = evaluateChance(e, candles);
     if (next.result !== e.result || next.entered !== e.entered) {
       log[i] = next;
+      changed = true;
+    }
+  }
+  // Dividenden zwischen Einstieg und Ergebnis (Anspruch: vor dem Ex-Tag besessen, ausgezahlt bis heute) – nur Rendite, nicht die Treffer
+  for (let i = 0; i < log.length; i++) {
+    const e = log[i];
+    if (e.kind !== "stock" || !e.entered || e.dir !== "long") continue;
+    const from = e.entered * 1000;
+    void loadDividends({ kind: e.kind, symbol: e.symbol }, from);
+    const ev = eventsFor({ kind: e.kind, symbol: e.symbol });
+    if (!ev.length) continue;
+    const entryPx = e.zoneTop;
+    const sum = creditsFor([{ qty: 1, from, to: e.at != null ? e.at * 1000 : undefined }], ev).reduce((a, c) => a + c.amount, 0);
+    const pct = entryPx > 0 ? (sum / entryPx) * 100 : 0;
+    if (Math.abs(pct - (e.divPct ?? 0)) > 1e-6) {
+      log[i] = { ...e, divPct: pct };
       changed = true;
     }
   }

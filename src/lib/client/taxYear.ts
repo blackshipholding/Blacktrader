@@ -2,7 +2,8 @@
 // eines Kalenderjahres werden verrechnet – über Blacktrader-Trades und Buy & Hold zusammen (wie bei einem Depot).
 import type { Trade } from "../store/store";
 import { countsForAccount, investedOf } from "./account";
-import { summarizeHolding, type Holding } from "./holdings";
+import type { Holding } from "./holdings";
+import { creditsOfHolding, creditsOfTrades, holdingSummary } from "./dividendBook";
 
 export const KEST = 0.275;
 
@@ -12,7 +13,7 @@ export interface TaxYear {
   trades: number;
   /** Buy & Hold: verkaufte Gewinne/Verluste */
   sold: number;
-  /** Buy & Hold: Dividenden brutto */
+  /** Dividenden brutto (Buy & Hold und Blacktrader-Aktien) */
   dividends: number;
   total: number;
   kest: number;
@@ -26,10 +27,13 @@ export function taxYears(trades: Trade[], holdings: Holding[]): TaxYear[] {
     row(String(new Date(t.closedAt).getFullYear())).trades += (investedOf(t) * t.returnPct) / 100;
   }
   for (const h of holdings) {
-    const s = summarizeHolding(h);
+    const s = holdingSummary(h);
     for (const t of h.txs) if (t.type === "div") row(t.date.slice(0, 4)).dividends += t.price;
+    for (const c of creditsOfHolding(h)) row(c.date.slice(0, 4)).dividends += c.grossEur;
     for (const [k, v] of Object.entries(s.realizedByYear)) row(k).sold += v;
   }
+  // Dividenden der Blacktrader-Aktien-Trades (am Auszahlungstag)
+  for (const c of creditsOfTrades(trades.filter(countsForAccount))) row(String(new Date(c.pay).getFullYear())).dividends += c.grossEur;
   // realizedByYear enthält die Dividenden schon – für „verkauft“ wieder abziehen
   for (const r of Object.values(y)) {
     r.sold -= r.dividends;
