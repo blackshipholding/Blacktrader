@@ -39,7 +39,10 @@ export default function KursTest() {
       let bin: Cell;
       let yahoo: Cell;
       let xs: Cell;
-      if (a.kind === "crypto") bin = await probeBinanceEur(a.binanceSymbol);
+      if (a.kind === "crypto") {
+        bin = await probeBinanceEur(a.binanceSymbol);
+        xs = await probeXStock(a.symbol.replace(/[-.].*$/, ""), true);
+      }
       else {
         // Standard-Kurs der App: Yahoo (mit Vor-/Nachbörse) in Dollar, umgerechnet in Euro
         try {
@@ -71,7 +74,10 @@ export default function KursTest() {
         <div key={`${r.a.kind}:${r.a.symbol}`} className="card space-y-1 p-3 text-[14px]">
           <div className="font-semibold text-stone-50">{r.a.name} <span className="text-stone-400">{r.a.symbol}</span></div>
           {r.a.kind === "crypto" ? (
-            <div className="num text-stone-200">Binance EUR: {r.bin ? `${fmt(r.bin.price)} ${age(r.bin.time)}` : "kein Euro-Paar"}</div>
+            <>
+              <div className="num text-stone-200">Binance EUR: {r.bin ? `${fmt(r.bin.price)} ${age(r.bin.time)}` : "kein Euro-Paar"}</div>
+              <div className="num text-stone-200">Kraken EUR: {r.xs ? `${fmt(r.xs.price)} ${age(r.xs.time)}` : "kein Euro-Paar"}</div>
+            </>
           ) : (
             <>
             <div className="num flex justify-between text-stone-200">

@@ -179,9 +179,9 @@ export async function probeBinanceEur(binanceSymbol?: string): Promise<{ price: 
 }
 
 /** Nur für die Testseite: Kurs der tokenisierten Aktie bei Kraken (USD), null = nicht verfügbar */
-export async function probeXStock(symbol: string): Promise<{ price: number; time?: number } | null> {
+export async function probeXStock(symbol: string, crypto = false): Promise<{ price: number; time?: number } | null> {
   try {
-    const res = await fetch(`/api/xstock?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" });
+    const res = await fetch(`/api/xstock?symbol=${encodeURIComponent(symbol)}${crypto ? "&crypto=1" : ""}`, { cache: "no-store" });
     if (!res.ok) return null;
     const j = (await res.json()) as { price?: number; time?: number };
     return j.price && j.price > 0 ? { price: j.price, time: j.time } : null;
