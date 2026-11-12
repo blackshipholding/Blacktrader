@@ -18,6 +18,7 @@ import { SCAN_PRESETS } from "@/lib/client/presets";
 import { useScan } from "@/lib/client/scanner";
 import { actions, useAppData } from "@/lib/store/store";
 import { type Candle, type Fundamentals, type Horizon, type Interval, type NewsItem, type ResolvedAsset } from "@/lib/types";
+import { sameZone } from "./MiniChart";
 import { Commentary, planMatchesMain, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
 import type { ChartEntry } from "./chartZones";
 import { PriceChart } from "./PriceChart";
@@ -156,8 +157,14 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false }: { a
     const STATUS = { erledigt: "erledigt", ungültig: "ungültig", abgelöst: "abgelöst" } as const;
     const near = (a: number, b: number) => Math.abs(a - b) / Math.max(1e-9, Math.abs(b)) < 0.005;
     const bought = (top: number, bottom: number) => buys.some((t) => near(t.lt!.zoneTop, top) && near(t.lt!.zoneBottom, bottom));
+    // Aktuelle Zone: alte, fast gleiche Einstiege (neuer Schlüssel durch minimal andere Kanten) nicht grau darüber zeichnen –
+    // sonst überlagern sich Kästen und Beschriftungen (Nutzerfund Caterpillar 12.11.2026). Auch alte Zonen untereinander nur einmal.
+    const cur = best?.best;
+    const curZone: [number, number] | null = cur && cur.color !== "gelb" && cur.zoneTop != null && cur.zoneBottom != null ? [cur.zoneTop, cur.zoneBottom] : null;
+    const shown: [number, number][] = curZone ? [curZone] : [];
     for (const p of (best?.history.past ?? []).slice(0, 10))
-      if (p.zoneTop != null && p.zoneBottom != null && !bought(p.zoneTop, p.zoneBottom)) out.push({ color: "grau", from: p.from, to: p.to, top: p.zoneTop, bottom: p.zoneBottom, label: `${p.status ? STATUS[p.status] : "alt"} ${p.to ? fmtD(p.to) : ""}`.trim() });
+      if (p.zoneTop != null && p.zoneBottom != null && !bought(p.zoneTop, p.zoneBottom) && !shown.some((z) => sameZone(z, [p.zoneTop!, p.zoneBottom!])) && shown.push([p.zoneTop, p.zoneBottom]))
+        out.push({ color: "grau", from: p.from, to: p.to, top: p.zoneTop, bottom: p.zoneBottom, label: `${p.status ? STATUS[p.status] : "alt"} ${p.to ? fmtD(p.to) : ""}`.trim() });
     // Deine Käufe: neuester blau, ältere grau (bis zum nächsten Kauf)
     buys.forEach((t, k) => {
       const latest = k === buys.length - 1;

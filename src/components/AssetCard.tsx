@@ -265,22 +265,13 @@ export function AssetCard({
             {plan && riskPct > RISK_LIMIT && <span className="badge-risk">Hohes Risiko</span>}
           </div>
 
-          {(myLine || isNachkauf || myTrade?.promotedAt || (plan && riskPct > RISK_LIMIT)) && (
+          {(myLine || isNachkauf || myTrade?.promotedAt) && (
             <div className="space-y-1.5 text-[14px]">
               {isNachkauf && <p className="text-sky-200">Nachkauf möglich: neuer blauer Bereich zu deiner Position – {ADD.stake.toLocaleString("de-DE")} € (noch {nk!.left} von {ADD.max}).</p>}
               {myLine && <p className="text-sky-200">{myLine}</p>}
               {myTrade?.promotedAt && (
                 <p className="text-emerald-200">
                   Stop nachgezogen am {new Date(myTrade.promotedAt).toLocaleDateString("de-DE")}: {myTrade.promoteReason}
-                </p>
-              )}
-              {plan && riskPct > RISK_LIMIT && (
-                <p className="text-red-300">
-                  {plan.stop <= 0
-                    ? "Kein sinnvoller Stop möglich (die Welle ist zu groß) – Totalverlust des Einsatzes möglich."
-                    : riskPct >= 50
-                      ? `Stop ${pctStr(plan.entry, plan.stop)} entfernt – bei flatex kaum sinnvoll umsetzbar, ein Großteil des Einsatzes kann verloren gehen.`
-                      : `Stop ${pctStr(plan.entry, plan.stop)} entfernt – nur mit kleiner Positionsgröße.`}
                 </p>
               )}
             </div>
