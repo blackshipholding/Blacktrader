@@ -17,6 +17,7 @@ import { useLive } from "@/lib/client/market";
 import { SCAN_PRESETS } from "@/lib/client/presets";
 import { useScan } from "@/lib/client/scanner";
 import { actions, useAppData } from "@/lib/store/store";
+import { myShares } from "@/lib/client/dividends";
 import { type Candle, type Fundamentals, type Horizon, type Interval, type NewsItem, type ResolvedAsset } from "@/lib/types";
 import { sameZone } from "./MiniChart";
 import { Commentary, planMatchesMain, LongTermSignalCard, FundamentalsPanel, NewsPanel, SignalCard, VolumePanel, WavePanel } from "./AnalysisPanels";
@@ -38,6 +39,8 @@ export type ReasonNote = { text: string; tone: "red" | "blue" };
 
 export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes }: { asset: DetailAsset; initialHorizon?: Horizon; hideTake?: boolean; notes?: ReasonNote[] }) {
   const settings = useAppData((d) => d.settings);
+  const holdingsAll = useAppData((d) => d.holdings);
+  const tradesAll = useAppData((d) => d.trades);
   const live = useLive(asset);
   const scan = useScan();
   const best = scan.entries.find((e) => e.asset.kind === asset.kind && e.asset.symbol === asset.symbol);
@@ -295,7 +298,7 @@ export function AssetDetailView({ asset, initialHorizon, hideTake = false, notes
             </p>
           ))}
           {showTradePlan && <Commentary a={analysis} item={asset} main={mainColor === "gruen" || mainColor === "rot" || mainColor === "gelb" ? mainColor : undefined} waitText={best?.best.waitFor ?? best?.best.reason} />}
-          <FundamentalsPanel a={analysis} f={fundamentals} note={fundNote} kind={asset.kind} />
+          <FundamentalsPanel a={analysis} f={fundamentals} note={fundNote} kind={asset.kind} price={live?.price ?? chartCandles[chartCandles.length - 1]?.close} shares={myShares(asset.kind, asset.symbol, holdingsAll, tradesAll)} />
           <NewsPanel news={news} score={analysis.fundamental.newsScore} />
           <details className="card p-4" open={settings.expertMode}>
             <summary className="cursor-pointer text-[15px] font-medium text-gold-light">Wellenzählung im Detail</summary>

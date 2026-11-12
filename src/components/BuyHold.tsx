@@ -11,6 +11,7 @@ import { Sheet } from "./Sheet";
 import { api } from "@/lib/client/api";
 import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
 import { toEur } from "@/lib/fx";
+import { dividendPerShareEur, netOfTax } from "@/lib/client/dividends";
 import { protectDue } from "@/lib/analysis/longterm";
 import { actions, useAppData } from "@/lib/store/store";
 import type { Horizon, ResolvedAsset } from "@/lib/types";
@@ -95,6 +96,30 @@ export function BuyHold() {
     void runScan(missing ? 60e3 : undefined);
   }, [missing]);
   const prices = usePrices(holdings);
+  // Erwartete Dividenden pro Jahr (brutto, €) je gehaltenem Wert – aus den Firmenzahlen (Yahoo), nur Aktien
+  const [divGross, setDivGross] = useState<Record<string, number>>({});
+  const divKey = holdings.filter((h) => h.kind === "stock" && summarizeHolding(h).qty > 0).map((h) => `${h.id}:${summarizeHolding(h).qty}`).join(",");
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      for (const h of holdings) {
+        const qty = summarizeHolding(h).qty;
+        if (h.kind !== "stock" || qty <= 0) continue;
+        try {
+          const f = (await api.fundamentals(h)).fundamentals;
+          const per = dividendPerShareEur(f);
+          const perEur = per ?? (f && f.kind === "stock" && f.dividendYield && prices[h.id] ? f.dividendYield * prices[h.id] : null);
+          if (alive) setDivGross((x) => ({ ...x, [h.id]: perEur != null ? perEur * qty : 0 }));
+        } catch {
+          /* ohne Firmenzahlen keine Dividende */
+        }
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [divKey, Object.keys(prices).length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [form, setForm] = useState<Form>(null);
   const [detail, setDetail] = useState<Holding | null>(null);
   const { open: openSheet, sheet: assetSheet } = useAssetSheet();
@@ -142,6 +167,10 @@ export function BuyHold() {
         <div className="card px-3 py-2.5">
           <div className="label">Dividenden (brutto)</div>
           <div className="num text-[17px] font-semibold text-stone-50">{eur(dividends)}</div>
+        </div>
+        <div className="card px-3 py-2.5">
+          <div className="label">Dividenden/Jahr (netto)</div>
+          <div className="num text-[17px] font-semibold text-stone-50">{eur(netOfTax(Object.values(divGross).reduce((a, b) => a + b, 0)))}</div>
         </div>
         <div className="card px-3 py-2.5">
           <div className="label">Gebühren</div>

@@ -1,4 +1,5 @@
 "use client";
+import { dividendPerShareEur, netOfTax } from "@/lib/client/dividends";
 import { useState } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
@@ -272,7 +273,7 @@ const fmtPctF = (x?: number) => (x == null ? null : `${(x * 100).toFixed(1).repl
 const fmtNumF = (x?: number, d = 2) => (x == null ? null : x.toLocaleString("de-DE", { maximumFractionDigits: d }));
 
 /** Fundamentalzahlen: immer echte Werte mit kurzer Einordnung; ohne Daten sichtbarer Grund. */
-export function FundamentalsPanel({ a, f, note, kind }: { a: AnalysisResult; f: Fundamentals | null; note?: string; kind?: string }) {
+export function FundamentalsPanel({ a, f, note, kind, price, shares }: { a: AnalysisResult; f: Fundamentals | null; note?: string; kind?: string; price?: number; shares?: number }) {
   if (kind === "commodity")
     return (
       <div className="card p-4">
@@ -281,6 +282,9 @@ export function FundamentalsPanel({ a, f, note, kind }: { a: AnalysisResult; f: 
       </div>
     );
   const comment = (name: string) => a.fundamental.items.find((i) => i.name === name);
+  // Dividende je Anteil (Jahr, in €) und – wenn du Anteile hast – deine Summe netto (27,5 % KESt, keine Gebühr bei flatex)
+  const divPer = dividendPerShareEur(f, price);
+  const eurF = (x: number) => `${x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   const rows: [string, string | null, string?][] = !f
     ? []
     : f.kind === "stock"
@@ -294,6 +298,8 @@ export function FundamentalsPanel({ a, f, note, kind }: { a: AnalysisResult; f: 
           ["Verschuldung (Schulden/Eigenkapital)", f.debtToEquity == null ? null : `${fmtNumF(f.debtToEquity / 100)}×`, "Verschuldung (D/E)"],
           ["Freier Geldzufluss", f.freeCashflow == null ? null : compactNumber(f.freeCashflow), "Free Cashflow"],
           ["Dividendenrendite", fmtPctF(f.dividendYield), "Dividendenrendite"],
+          ["Dividende je Anteil (pro Jahr)", divPer != null ? eurF(divPer) : null],
+          ["Deine Dividende pro Jahr (netto)", divPer != null && shares && shares > 0 ? `${eurF(netOfTax(divPer * shares))} (${eurF(divPer * shares)} brutto, ${shares.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück)` : null],
           ["Marktkapitalisierung", f.marketCap == null ? null : compactNumber(f.marketCap)],
           ["Nächste Quartalszahlen", f.nextEarnings ? new Date(f.nextEarnings).toLocaleDateString("de-DE") : null],
         ]

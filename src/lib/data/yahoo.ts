@@ -254,6 +254,7 @@ export async function yahooFundamentals(symbol: string): Promise<StockFundamenta
       freeCashflow: v(fd.freeCashflow),
       marketCap: v(sd.marketCap) ?? v(pr.marketCap),
       dividendYield: v(sd.dividendYield) ?? v(sd.trailingAnnualDividendYield),
+      dividendRate: v(sd.dividendRate) ?? v(sd.trailingAnnualDividendRate),
       nextEarnings: earn ? new Date(earn * 1000).toISOString() : undefined,
       currency: pr.currency,
       source: "Yahoo Finance",

@@ -91,6 +91,8 @@ export interface StockFundamentals {
   freeCashflow?: number;
   marketCap?: number;
   dividendYield?: number; // Anteil
+  /** Jahresdividende je Anteil in der Währung des Wertes */
+  dividendRate?: number;
   nextEarnings?: string; // ISO-Datum
   currency?: string;
   source: string;
