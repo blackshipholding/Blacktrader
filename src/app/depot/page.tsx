@@ -182,6 +182,7 @@ function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t:
   const entryEur = qty > 0 ? invested / qty : t.entry * (t.fxEntry ?? fx);
   const profit = !pending && cur != null && t.entry > 0 ? tradeReturnEur(t, cur) : undefined;
   const profitEur = profit != null ? invested * (profit / 100) : null;
+  const [showBuys, setShowBuys] = useState(true);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <div onClick={stop}>
@@ -204,7 +205,7 @@ function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t:
         {profitEur != null && <span className={profitEur >= 0 ? "text-up" : "text-down"}>{profitEur >= 0 ? "Gewinn" : "Verlust"} {eur(profitEur, true)}</span>}
         <span className="text-stone-400">{t.stop > 0 ? `Stop ${money(t.stop, cc)}` : "kein Stop"}</span>
       </div>
-      <div className="num mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-[13px] text-emerald-100">
+      {showBuys && <div className="num mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-[13px] text-emerald-100">
         <div className="mb-1 flex items-center justify-between font-semibold text-emerald-300">
           <span>Kauf · {eur(invested)}</span>
           <span className="font-normal text-stone-400">{new Date(t.openedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}</span>
@@ -215,7 +216,7 @@ function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t:
           <span className={pending ? "text-stone-400" : "text-up"}>{pending ? "wartet" : "✓"}</span>
         </div>
         {t.targets[0] != null && <p className="text-stone-300">Ziel {money(t.targets[0], cc)}</p>}
-      </div>
+      </div>}
       {pending && (
         <div className="num mt-2 flex justify-between rounded-xl bg-white/5 px-2.5 py-2 text-[14px] text-stone-300">
           <span>Wartende Order (reserviert)</span>
@@ -227,6 +228,10 @@ function GreenBody({ t, cur, onAction }: { t: Trade; cur?: number; onAction: (t:
         <button className="btn min-h-[44px] border-gold/50 text-gold-light" disabled={pending} onClick={() => onAction(t)}>Stop</button>
         <button className="btn min-h-[44px] border-gold/50 text-gold-light" disabled={!pending} onClick={() => onAction(t)}>Orders</button>
       </div>
+      <button className="mt-2 flex min-h-[40px] w-full items-center justify-between border-t border-white/10 pt-2 text-[14px] text-stone-400" onClick={() => setShowBuys(!showBuys)}>
+        <span>{showBuys ? "Käufe ausblenden" : "Käufe anzeigen"}</span>
+        <span>{showBuys ? "▲" : "▼"}</span>
+      </button>
     </div>
   );
 }
