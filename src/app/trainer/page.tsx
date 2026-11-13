@@ -461,7 +461,7 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
   return (
     <section className="card space-y-3 p-4">
       <h2 className="text-[17px] text-gold-light">Bessere Varianten</h2>
-      <p className="text-[14px] text-stone-400">Der Trainer baut nichts allein ein. Eine bessere Einstellung wird an {REQUIRED_DAYS} verschiedenen Tagen nachgeprüft (jedes Mal anderer Ausschnitt der Werte). Erst wenn sie alle besteht, entscheidest du.</p>
+      <p className="text-[14px] text-stone-400">Der Trainer baut nichts allein ein. Eine bessere Einstellung wird an {REQUIRED_DAYS} verschiedenen Tagen nachgeprüft (jedes Mal ein anderer Ausschnitt von der Hälfte der Werte). Erst wenn sie alle besteht, entscheidest du.</p>
       {retest.running && (
         <>
           <p className="text-[14px] text-amber-200">{retest.text || "Prüfung läuft …"}</p>

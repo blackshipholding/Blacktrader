@@ -1,5 +1,5 @@
 // Nachprüfung eines Trainer-Vorschlags an einem anderen Tag (Nutzer 13.11.2026): Jeden Tag wird ein anderer Ausschnitt der
-// Lernwerte (70 %) genommen, alt gegen neu auf den unbekannten Prüfbereichen verglichen – mit denselben harten Regeln wie beim
+// Lernwerte (50 %) genommen, alt gegen neu auf den unbekannten Prüfbereichen verglichen – mit denselben harten Regeln wie beim
 // Lernen (Mindestzahl Zonen, 95 % Sicherheit, Profit-Faktor, Rückgang, Signalmenge). Rein rechnerisch, ohne Netz.
 import type { LearnableParams } from "../analysis/params";
 import { backtestSeries, decide, metrics, withZones, walkForwardFolds, type Decision, type Metrics, type Series } from "./engine";
@@ -15,8 +15,11 @@ export function hash01(text: string): number {
   return ((h >>> 0) % 1_000_000) / 1_000_000;
 }
 
+/** Anteil der Werte je Prüftag – bei sehr vielen Werten genügt die Hälfte (Nutzer 13.11.2026) */
+export const RETEST_SHARE = 0.5;
+
 /** Ausschnitt der Werte für einen Tag: jeder Tag ein anderer, am selben Tag immer derselbe */
-export function pickSubset<T extends { symbol: string }>(specs: T[], day: string, share = 0.7): T[] {
+export function pickSubset<T extends { symbol: string }>(specs: T[], day: string, share = RETEST_SHARE): T[] {
   return specs.filter((s) => hash01(`${day}|${s.symbol}`) < share);
 }
 

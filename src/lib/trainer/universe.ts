@@ -62,6 +62,22 @@ export const STOCKS_EU_WIDE = [
   "AZN.L", "SHEL.L", "HSBA.L", "ULVR.L", "BP.L", "GSK.L", "RIO.L", "DGE.L", "BATS.L", "LSEG.L", "REL.L", "NG.L", "BARC.L", "LLOY.L", "VOD.L", "TSCO.L", "CPG.L", "AAL.L", "GLEN.L", "RR.L", "BA.L", "PRU.L", "STAN.L", "IMB.L",
 ];
 
+/** Asien-Pazifik (Nutzer 13.11.2026): Japan, Hongkong, Australien, Südkorea, Taiwan, Indien, Singapur – große Werte; unbekannte Kürzel werden übersprungen */
+export const STOCKS_ASIA_WIDE = [
+  // Japan (Tokio)
+  "7203.T", "6758.T", "9984.T", "8306.T", "6861.T", "9432.T", "8035.T", "6098.T", "4063.T", "6501.T", "7974.T", "8316.T", "9433.T", "8058.T", "8001.T", "8031.T", "7267.T", "7201.T", "6902.T", "6367.T", "4502.T", "4503.T", "4519.T", "4568.T", "2914.T", "3382.T", "9983.T", "6954.T", "6594.T", "6752.T", "6702.T", "6503.T", "7751.T", "7741.T", "4543.T", "8766.T", "8411.T", "8591.T", "5108.T", "5401.T", "9020.T", "9022.T", "9101.T", "9201.T", "2502.T", "4452.T", "6981.T", "6971.T", "8802.T", "1925.T",
+  // Hongkong, China
+  "0700.HK", "9988.HK", "0005.HK", "1299.HK", "3690.HK", "0941.HK", "0388.HK", "2318.HK", "1211.HK", "0883.HK", "0939.HK", "1398.HK", "3988.HK", "0857.HK", "0386.HK", "2628.HK", "1810.HK", "9618.HK", "9999.HK", "0027.HK", "0016.HK", "0001.HK", "0002.HK", "0003.HK", "0011.HK", "0066.HK", "0175.HK", "2020.HK", "2269.HK", "6690.HK",
+  // Australien
+  "BHP.AX", "CBA.AX", "CSL.AX", "NAB.AX", "WBC.AX", "ANZ.AX", "WES.AX", "MQG.AX", "FMG.AX", "WOW.AX", "TLS.AX", "RIO.AX", "WDS.AX", "GMG.AX", "TCL.AX", "COL.AX", "ALL.AX", "STO.AX", "QBE.AX", "SUN.AX", "ORG.AX", "APA.AX", "XRO.AX", "REA.AX", "AMC.AX", "BXB.AX", "NST.AX", "EVN.AX", "S32.AX", "MIN.AX",
+  // Südkorea, Taiwan
+  "005930.KS", "000660.KS", "373220.KS", "207940.KS", "005380.KS", "035420.KS", "051910.KS", "006400.KS", "035720.KS", "105560.KS", "055550.KS", "012330.KS", "000270.KS", "068270.KS", "066570.KS",
+  "2330.TW", "2317.TW", "2454.TW", "2412.TW", "2882.TW", "2881.TW", "1301.TW", "2308.TW", "2303.TW", "3711.TW", "2002.TW", "1216.TW", "2891.TW", "2886.TW", "3008.TW",
+  // Indien, Singapur
+  "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS", "HINDUNILVR.NS", "ITC.NS", "SBIN.NS", "BHARTIARTL.NS", "KOTAKBANK.NS", "LT.NS", "AXISBANK.NS", "ASIANPAINT.NS", "MARUTI.NS", "SUNPHARMA.NS", "TITAN.NS", "BAJFINANCE.NS", "NESTLEIND.NS", "WIPRO.NS", "TATAMOTORS.NS", "ULTRACEMCO.NS", "POWERGRID.NS", "NTPC.NS", "ONGC.NS", "M&M.NS",
+  "D05.SI", "O39.SI", "U11.SI", "Z74.SI", "C6L.SI", "C38U.SI", "A17U.SI", "S68.SI", "BN4.SI", "F34.SI",
+];
+
 /** Kerzengröße und Zeitraum je Horizont (Yahoo liefert Stundenkerzen nur für ca. 2 Jahre). */
 export const HORIZON_SETUP: Record<Horizon, { interval: Interval; days: number; step: number }> = {
   short: { interval: "1h", days: 729, step: 2 },
@@ -93,7 +109,7 @@ export function sessionUniverse(cell: CellKey, extra: { symbol: string; kind: As
   const add: string[] = [];
   if (kind === "stock") add.push(...INDICES);
   // Breite Lernwerte (Mittel-/Langfrist): viele Aktien USA + Europa, viele Coins – mehr Zonen für die Mindestzahl (B2)
-  if (kind === "stock" && horizon !== "short") add.push(...STOCKS_US_WIDE, ...STOCKS_EU_WIDE);
+  if (kind === "stock" && horizon !== "short") add.push(...STOCKS_US_WIDE, ...STOCKS_EU_WIDE, ...STOCKS_ASIA_WIDE);
   if (kind === "crypto" && horizon !== "short") add.push(...CRYPTO_WIDE);
   if (kind === "stock" && horizon === "short") add.push(...STOCKS.slice(25));
   for (const e of extra) if (e.kind === kind) add.push(e.yahooSymbol ?? (kind === "crypto" ? `${e.symbol}-USD` : e.symbol));

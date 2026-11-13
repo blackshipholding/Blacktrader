@@ -51,12 +51,12 @@ describe("Trainer-Vorschläge", () => {
 
 describe("Ausschnitt je Tag", () => {
   const specs = Array.from({ length: 500 }, (_, i) => ({ symbol: `S${i}` }));
-  it("am selben Tag gleich, an anderen Tagen anders, ca. 70 %", () => {
+  it("am selben Tag gleich, an anderen Tagen anders, ca. 50 %", () => {
     const a = pickSubset(specs, "2026-11-14").map((s) => s.symbol);
     expect(pickSubset(specs, "2026-11-14").map((s) => s.symbol)).toEqual(a);
     expect(pickSubset(specs, "2026-11-15").map((s) => s.symbol)).not.toEqual(a);
-    expect(a.length).toBeGreaterThan(300);
-    expect(a.length).toBeLessThan(400);
+    expect(a.length).toBeGreaterThan(200);
+    expect(a.length).toBeLessThan(300);
     expect(hash01("x")).toBeGreaterThanOrEqual(0);
   });
 });
