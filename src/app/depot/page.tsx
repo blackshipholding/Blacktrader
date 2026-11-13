@@ -27,6 +27,7 @@ import { useAssetSheet } from "@/components/AssetSheet";
 import { ProposalBox } from "@/components/ProposalBox";
 import { PositionCard } from "@/components/PositionCard";
 import { EntryTile } from "@/components/EntryTile";
+import { clearMissedStop } from "@/lib/client/missedStop";
 import type { ResolvedAsset } from "@/lib/types";
 import { blueGroups } from "@/lib/client/position";
 import { GAUGE_PREFIX, HeldGauge } from "@/components/NeutralGauge";
@@ -327,6 +328,30 @@ function TrancheList({ t }: { t: Trade }) {
   );
 }
 
+/** Hinweis: Stop wurde berührt, während die App geschlossen war (nur Hinweis, nichts gebucht) */
+function MissedStopBanner() {
+  const trades = useAppData((d) => d.trades.filter((t) => t.status === "open" && t.missedStop));
+  if (!trades.length) return null;
+  const eur = (x: number) => `${x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  return (
+    <div className="space-y-2">
+      {trades.map((t) => (
+        <div key={t.id} className="card border-amber-400/40 bg-amber-500/10 p-3.5">
+          <div className="text-[15px] font-semibold text-amber-200">
+            {t.missedStop!.near ? "Stop knapp berührt" : "Stop berührt"}: {t.name}
+          </div>
+          <div className="mt-1 text-[14px] text-stone-200">
+            Während die App zu war, {t.missedStop!.near ? "kam" : "fiel"} der Kurs {t.missedStop!.near ? "nahe an" : "auf"} deinen Stop {eur(t.missedStop!.stopEur)} (tiefster Stand {eur(t.missedStop!.lowEur)}, {new Date(t.missedStop!.at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}). Bitte bei flatex prüfen und hier eintragen.
+          </div>
+          <button className="btn mt-2 w-full" onClick={() => clearMissedStop(t.id)}>
+            Erledigt
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DepotPage() {
   const [tab, setTab] = useState<"bt" | "bh">("bt");
   return (
@@ -457,6 +482,7 @@ function BlacktraderDepot() {
         </div>
       )}
 
+      <MissedStopBanner />
       <CapitalBox capital={capital} accountValue={acc.cash + acc.invested} dividends={{ net: acc.dividends, gross: acc.dividendsGross, items: divItems }} />
 
       {acc.broke ? (
