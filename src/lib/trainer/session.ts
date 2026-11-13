@@ -119,7 +119,7 @@ export async function runSession(st: SessionState, io: SessionIO): Promise<Sessi
     if (!st.wf) {
       const [kind, horizon] = cell.split(":") as [AssetKind, Horizon];
       const base = resolveParams(st.cfg.paramSet, kind, horizon);
-      st.wf = initWF(cell, sessionUniverse(cell, st.cfg.extra), base, { maxSteps: 1000, candidatesPerStep: 8 });
+      st.wf = initWF(cell, sessionUniverse(cell, st.cfg.extra), base, { maxSteps: 1000, candidatesPerStep: 24 });
       // Restzeit gleichmäßig auf die verbleibenden Bereiche verteilen
       st.cellBudgetMs = (st.cfg.durationMs - st.elapsedMs) / (st.cfg.cells.length - st.cellIdx);
       st.cellElapsedMs = 0;

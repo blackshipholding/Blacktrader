@@ -14,7 +14,8 @@ import { HORIZON_RANK } from "@/lib/analysis/bestEntry";
 import { allHistories } from "@/lib/client/entries";
 import { refreshTrainerParams, useTrainerCells } from "@/lib/client/trainerParams";
 import { initVersionsSeen, newVersions } from "@/lib/client/versionNotice";
-import { loadReports, startTraining, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
+import { adoptProposal, discardProposal, loadReports, retestProposals, startTraining, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
+import { dueForRetest, isActive, passDays, REQUIRED_DAYS, useProposals, type Proposal } from "@/lib/client/proposals";
 import { primaryCount, primaryRate, TARGET_HIT_RATE } from "@/lib/trainer/engine";
 import { goalProgress, goalReached } from "@/lib/trainer/goal";
 import { DURATIONS } from "@/lib/trainer/session";
@@ -266,6 +267,8 @@ export default function TrainerPage() {
         </div>
       </section>
 
+      <ProposalsCard retest={t.retest} />
+
       <section className="card space-y-3 p-4">
         <h2 className="text-[17px] text-gold-light">Training</h2>
         {!running ? (
@@ -440,6 +443,70 @@ function LiveControl() {
       <p className="text-stone-400">
         Live-Prüfung beim Lernen: {chk.all.n >= LIVE_LEARN_MIN ? "aktiv – ein neuer Stand muss auch im Live-Zeitraum bestehen." : `wartet auf ${LIVE_LEARN_MIN} Ergebnisse (bisher ${chk.all.n}).`}
       </p>
+    </section>
+  );
+}
+
+
+const STATUS_TEXT: Record<Proposal["status"], string> = { testing: "wird geprüft", ready: "bereit – deine Entscheidung", rejected: "durchgefallen", adopted: "eingebaut", discarded: "verworfen" };
+
+/** Bessere Varianten des Trainers: erst nachprüfen an mehreren Tagen, dann entscheidest du (Nutzer 13.11.2026) */
+function ProposalsCard({ retest }: { retest: { running: boolean; text: string } }) {
+  const list = useProposals();
+  const [msg, setMsg] = useState<Record<string, string>>({});
+  const shown = [...list].filter((p) => isActive(p) || p.status === "rejected" || p.status === "adopted").slice(-8).reverse();
+  const due = dueForRetest().length;
+  // Beim Öffnen des Trainers: fällige Nachprüfungen starten (läuft im Hintergrund)
+  useEffect(() => {
+    if (due > 0) void retestProposals();
+  }, [due]);
+  if (!shown.length && !retest.running) return null;
+  const pc = (x?: number) => (x == null ? "–" : `${(x * 100).toFixed(1).replace(".", ",")} %`);
+  return (
+    <section className="card space-y-3 p-4">
+      <h2 className="text-[17px] text-gold-light">Bessere Varianten</h2>
+      <p className="text-[14px] text-stone-400">Der Trainer baut nichts allein ein. Eine bessere Einstellung wird an {REQUIRED_DAYS} verschiedenen Tagen nachgeprüft (jedes Mal anderer Ausschnitt der Werte). Erst wenn sie alle besteht, entscheidest du.</p>
+      {retest.running && <p className="text-[14px] text-amber-200">{retest.text || "Prüfung läuft …"}</p>}
+      {shown.map((p) => (
+        <div key={p.id} className={`rounded-xl border p-3 text-[14px] ${p.status === "ready" ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-medium text-stone-100">{cellLabel(p.cell)}</span>
+            <span className={p.status === "ready" ? "text-emerald-300" : p.status === "rejected" ? "text-red-300" : "text-stone-300"}>{STATUS_TEXT[p.status]}</span>
+          </div>
+          <div className="mt-1 text-stone-300">{p.changes}</div>
+          <div className="num mt-1 text-stone-400">
+            Beim Fund: Zonen-Quote {pc(p.cand.zoneRate)} statt {pc(p.base.zoneRate)} ({p.cand.zones ?? p.cand.trades} Zonen) · Tage bestanden {passDays(p)}/{REQUIRED_DAYS}
+          </div>
+          {p.checks.map((c) => (
+            <div key={c.day} className={`mt-0.5 ${c.pass ? "text-stone-400" : "text-red-300"}`}>
+              {new Date(c.day).toLocaleDateString("de-DE")}: {c.note}
+            </div>
+          ))}
+          {p.note && p.status !== "ready" && <div className="mt-0.5 text-stone-500">{p.note}</div>}
+          {p.status === "ready" && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                className="btn-primary"
+                onClick={async () => {
+                  const r = await adoptProposal(p.id);
+                  setMsg((m) => ({ ...m, [p.id]: r }));
+                }}
+              >
+                Einbauen
+              </button>
+              <button className="btn" onClick={() => discardProposal(p.id)}>
+                Verwerfen
+              </button>
+            </div>
+          )}
+          {msg[p.id] && <div className="mt-1 text-amber-200">{msg[p.id]}</div>}
+        </div>
+      ))}
+      {due > 0 && !retest.running && (
+        <button className="btn w-full" onClick={() => void retestProposals()}>
+          Jetzt nachprüfen ({due})
+        </button>
+      )}
     </section>
   );
 }

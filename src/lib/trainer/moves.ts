@@ -43,13 +43,28 @@ export function candidateMoves(p: LearnableParams): { params: LearnableParams; c
   const { keys, degrees, weights } = activeKeys(p);
   for (const k of keys) {
     const [lo, hi] = PARAM_BOUNDS[k];
-    for (const dir of ONLY_UP.includes(k) ? [1] : [-1, 1]) {
+    // Einzel- und Doppelschritt (Nutzer 13.11.2026: mehr Kandidaten; Regelwerk C1 begrenzt den Gesamtabstand weiterhin auf 2 Schritte)
+    for (const dir of ONLY_UP.includes(k) ? [1, 2] : [-2, -1, 1, 2]) {
       const v = Math.round((p[k] + dir * STEP[k]) * 1000) / 1000;
       if (v < lo || v > hi) continue;
       const params = { ...p, [k]: v };
       if (!validateParams(params).length) out.push({ params, change: `${k} ${p[k]} → ${v}` });
     }
   }
+  // Zwei Stellschrauben zugleich (je ein Schritt) – nur die wichtigsten, damit die Zahl überschaubar bleibt
+  const pairKeys = keys.filter((k) => !ONLY_UP.includes(k) || p[k] > 0 || k === "minStrength").slice(0, 6);
+  for (let i = 0; i < pairKeys.length; i++)
+    for (let j = i + 1; j < pairKeys.length; j++)
+      for (const di of ONLY_UP.includes(pairKeys[i]) ? [1] : [-1, 1])
+        for (const dj of ONLY_UP.includes(pairKeys[j]) ? [1] : [-1, 1]) {
+          const a = pairKeys[i];
+          const b = pairKeys[j];
+          const va = Math.round((p[a] + di * STEP[a]) * 1000) / 1000;
+          const vb = Math.round((p[b] + dj * STEP[b]) * 1000) / 1000;
+          if (va < PARAM_BOUNDS[a][0] || va > PARAM_BOUNDS[a][1] || vb < PARAM_BOUNDS[b][0] || vb > PARAM_BOUNDS[b][1]) continue;
+          const params = { ...p, [a]: va, [b]: vb };
+          if (!validateParams(params).length) out.push({ params, change: `${a} ${p[a]} → ${va} + ${b} ${p[b]} → ${vb}` });
+        }
   if (degrees) {
     for (const f of [0.85, 1.15]) {
       const d = p.elliottDegrees.map((x) => Math.round(x * f * 100) / 100) as [number, number, number];

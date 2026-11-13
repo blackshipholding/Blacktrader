@@ -5,7 +5,9 @@ import { primaryRate } from "./engine";
 import { runSession, checkpoint, type CellOutcome, type SessionIO, type SessionState } from "./session";
 import { cagr, RULES, type PoolTrade, type TournamentReport } from "./tournament";
 import { b7Check, blacktraderPool, buildReport, playRound, prepareTournament, tuneStop, type Prepared } from "./tournamentRun";
-import { universe, type CellKey, type SeriesSpec } from "./universe";
+import { sessionUniverse, universe, type CellKey, type SeriesSpec } from "./universe";
+import { pickSubset, retestOnSeries, type SeriesWithStep } from "./retest";
+import type { ParamSet } from "../analysis/params";
 import type { AnalystEvent } from "./opponents";
 import { backtestSeries } from "./engine";
 
@@ -66,10 +68,67 @@ async function fetchSeries(spec: SeriesSpec): Promise<Candle[] | null> {
   return null;
 }
 
+/** Nachprüfung von Trainer-Vorschlägen an einem anderen Tag (Nutzer 13.11.2026) */
+interface RetestMsg {
+  type: "retest";
+  day: string;
+  paramSet: ParamSet;
+  extra: { symbol: string; kind: AssetKind; yahooSymbol?: string }[];
+  champions?: Record<string, Record<string, number>>;
+  /** `baseNow` = heute gültiger Stand der Zelle, `last` = letzte nötige Prüfung (dann zusätzlich Turnier/Härtetest) */
+  proposals: { id: string; cell: CellKey; baseNow: import("../analysis/params").LearnableParams; deployed: import("../analysis/params").LearnableParams; last: boolean }[];
+}
+
+async function runRetest(m: RetestMsg) {
+  stop = false;
+  const say = (text: string) => postMessage({ type: "retestProgress", text });
+  for (const p of m.proposals) {
+    if (stop) break;
+    const [kind, horizon] = p.cell.split(":") as [AssetKind, Horizon];
+    const specs = pickSubset(sessionUniverse(p.cell, m.extra), m.day);
+    const series: SeriesWithStep[] = [];
+    for (let i = 0; i < specs.length && !stop; i += 8) {
+      say(`Vorschlag ${p.cell}: Kursdaten laden (${Math.min(i + 8, specs.length)}/${specs.length})`);
+      const batch = await Promise.all(specs.slice(i, i + 8).map((sp) => load(sp)));
+      batch.forEach((c, j) => {
+        const sp = specs[i + j];
+        if (c && c.length > 300) series.push({ name: sp.symbol, kind, horizon, interval: sp.interval, candles: c, step: sp.step });
+      });
+    }
+    if (stop) break;
+    if (series.length < 20) {
+      postMessage({ type: "retestResult", id: p.id, day: m.day, skipped: true, note: "zu wenig Kursdaten erreichbar – heute nicht gewertet" });
+      continue;
+    }
+    say(`Vorschlag ${p.cell}: alt gegen neu auf ${series.length} Werten`);
+    await new Promise((r) => setTimeout(r, 0));
+    const r = retestOnSeries(series, p.baseNow, p.deployed);
+    let pass = r.pass;
+    let note = r.note;
+    // Letzte Prüfung: zusätzlich Turnier + Härtetest (Regelwerk B7/B8/B9) mit dem neuen Stand
+    if (pass && p.last) {
+      const tio = { load, analysts, dividends, champions: m.champions, seed: Number(m.day.replace(/-/g, "")) % 1_000_003 || 1, extra: m.extra, shouldStop: () => stop, onProgress: (f: number, t: string) => say(`Vorschlag ${p.cell}: ${t}`) };
+      const prep = await prepareTournament({ ...tio, onProgress: (f, t) => say(`Turnier vorbereiten ${Math.round(f * 100)} % · ${t}`) });
+      if (prep) {
+        const cur = (k: AssetKind, h: Horizon) => resolveParams(m.paramSet, k, h);
+        const with_ = (pp: typeof p.deployed) => (k: AssetKind, h: Horizon) => (k === kind && h === horizon ? pp : cur(k, h));
+        const b7 = await b7Check(prep, kind, with_(p.baseNow), with_(p.deployed), tio);
+        if (b7?.veto) {
+          pass = false;
+          note = `Turnier/Härtetest: ${b7.veto}`;
+        } else if (b7) note += " · Turnier und Härtetest bestanden";
+      }
+    }
+    postMessage({ type: "retestResult", id: p.id, day: m.day, pass, note, base: r.base, cand: r.cand });
+  }
+  postMessage({ type: "retestDone" });
+}
+
 let lastPost = 0;
 self.onmessage = async (e: MessageEvent) => {
-  const m = e.data as { type: "start"; state: SessionState } | { type: "stop" } | { type: "saved"; id: string; ok?: boolean };
+  const m = e.data as { type: "start"; state: SessionState } | { type: "stop" } | { type: "saved"; id: string; ok?: boolean } | RetestMsg;
   if (m.type === "stop") stop = true;
+  else if (m.type === "retest") await runRetest(m);
   else if (m.type === "saved") pending.get(m.id)?.(m.ok ?? true), pending.delete(m.id);
   else if (m.type === "start") {
     stop = false;

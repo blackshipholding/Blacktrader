@@ -14,6 +14,8 @@ import { ACTIVE_CELL_KEYS, type CellKey } from "../trainer/universe";
 import type { TournamentReport } from "../trainer/tournament";
 import type { StopParams } from "../analysis/longterm";
 import { getStopParams, saveStopParams } from "./stopParams";
+import { addProposal, dueForRetest, getProposals, passDays, recordCheck, REQUIRED_DAYS, setStatus, todayKey } from "./proposals";
+import { notify } from "./alerts";
 
 const KEY = "bsh-training-session";
 const MSG_KEY = "bsh-training-messages";
@@ -28,8 +30,10 @@ interface View {
   wakeLock: boolean;
   /** Turnier-Auswertungen, neueste zuerst */
   reports: TournamentReport[];
+  /** Nachprüfung der Vorschläge läuft (Nutzer 13.11.2026) */
+  retest: { running: boolean; text: string };
 }
-let view: View = { session: null, messages: {}, running: false, wakeLock: false, reports: [] };
+let view: View = { session: null, messages: {}, running: false, wakeLock: false, reports: [], retest: { running: false, text: "" } };
 const subs = new Set<() => void>();
 const emit = (patch: Partial<View>) => {
   view = { ...view, ...patch };
@@ -179,7 +183,9 @@ function spawn(state: SessionState) {
     }
     write(KEY, m.state);
     if (m.type === "improve") {
-      const r = await saveImprovement(m.cell, m.result, m.baseParams);
+      // Nutzer 13.11.2026: NICHT sofort einbauen – als Vorschlag merken, an mehreren Tagen nachprüfen, du entscheidest
+      const prop = addProposal(m.cell, { baseParams: m.baseParams, deployed: m.result.deployed, base: m.result.base, cand: m.result.cand, changes: m.result.changes });
+      const r = { ok: true, message: prop ? `Bessere Einstellung gefunden (${m.result.changes}) – noch NICHT eingebaut: wird an ${REQUIRED_DAYS} verschiedenen Tagen nachgeprüft, dann fragt die App dich.` : "" };
       if (r.message) {
         const list = [...(view.messages[m.state.cfg.id] ?? []), r.message];
         const messages = { ...view.messages, [m.state.cfg.id]: list };
@@ -256,7 +262,72 @@ export async function startTraining(durationMs: number, cells: CellKey[] = [...A
   spawn(st);
 }
 
+let rworker: Worker | null = null;
+
+/**
+ * Vorschläge nachprüfen, die heute noch nicht geprüft wurden (jeder Tag zählt einmal, jedes Mal anderer Ausschnitt der Werte).
+ * Besteht ein Vorschlag an REQUIRED_DAYS Tagen, meldet die App sich; durchgefallen = verworfen.
+ */
+export async function retestProposals(): Promise<void> {
+  if (view.running || view.retest.running || rworker) return;
+  const day = todayKey();
+  const due = dueForRetest(day);
+  if (!due.length) return;
+  await refreshTrainerParams(true);
+  const { params } = trainerParamSet();
+  const { resolveParams } = await import("../analysis/params");
+  const d = getData();
+  const extra = [...SCAN_PRESETS, ...d.watchlist].map((a) => ({ symbol: a.symbol, kind: a.kind, yahooSymbol: a.yahooSymbol }));
+  const lastWith = view.reports.find((r) => r.opponents?.length);
+  const champions = lastWith ? Object.fromEntries(lastWith.opponents!.map((o) => [o.id, o.params])) : undefined;
+  const proposals = due.map((p) => {
+    const [k, h] = p.cell.split(":") as [never, never];
+    return { id: p.id, cell: p.cell, baseNow: resolveParams(params, k, h), deployed: p.deployed, last: passDays(p) + 1 >= REQUIRED_DAYS };
+  });
+  const w = new Worker(new URL("../trainer/session.worker.ts", import.meta.url), { type: "module" });
+  rworker = w;
+  const end = () => {
+    w.terminate();
+    if (rworker === w) rworker = null;
+    emit({ retest: { running: false, text: "" } });
+  };
+  w.onmessage = (e: MessageEvent) => {
+    const m = e.data as { type: string; text?: string; id?: string; day?: string; pass?: boolean; skipped?: boolean; note?: string };
+    if (m.type === "retestProgress") emit({ retest: { running: true, text: m.text ?? "" } });
+    else if (m.type === "retestResult" && m.id && m.day && !m.skipped) {
+      const p = recordCheck(m.id, { day: m.day, pass: !!m.pass, note: m.note ?? "" });
+      if (p?.status === "ready") {
+        const text = `Der Trainer hat eine bessere Einstellung gefunden und sie an ${REQUIRED_DAYS} verschiedenen Tagen bestätigt (${p.changes}). Im Trainer kannst du sie einbauen oder verwerfen.`;
+        void notify("Trainer: bessere Variante bereit", text, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
+      }
+    } else if (m.type === "retestDone") end();
+  };
+  w.onerror = end;
+  emit({ retest: { running: true, text: "Vorschläge nachprüfen …" } });
+  w.postMessage({ type: "retest", day, paramSet: params, extra, champions, proposals });
+}
+
+/** Vorschlag einbauen (nur auf deinen Knopfdruck, nur wenn alle Tage bestanden). Gibt eine Meldung für die Anzeige zurück. */
+export async function adoptProposal(id: string): Promise<string> {
+  const p = getProposals().find((x) => x.id === id);
+  if (!p || p.status !== "ready") return "Dieser Vorschlag ist nicht mehr bereit.";
+  await refreshTrainerParams(true);
+  const { params } = trainerParamSet();
+  const { resolveParams } = await import("../analysis/params");
+  const [k, h] = p.cell.split(":") as [never, never];
+  const r: WFResult = { base: p.base, cand: p.cand, decision: { accept: true, reasons: [] }, deployed: p.deployed, changes: p.changes, improved: true };
+  const out = await saveImprovement(p.cell, r, resolveParams(params, k, h));
+  if (out.ok) {
+    setStatus(id, "adopted", out.message);
+    return out.message || "Eingebaut.";
+  }
+  return `Konnte nicht eingebaut werden${out.message ? `: ${out.message}` : " (die Regeln – z. B. kleine Schritte – lassen es nicht zu)"}. Der Vorschlag bleibt bereit.`;
+}
+
+export const discardProposal = (id: string) => setStatus(id, "discarded", "von dir verworfen");
+
 export function stopTraining() {
+  rworker?.postMessage({ type: "stop" });
   worker?.postMessage({ type: "stop" });
 }
 
