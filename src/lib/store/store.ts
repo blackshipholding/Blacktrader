@@ -6,7 +6,7 @@ import { DEFAULT_WEIGHTS, type SignalLevel, type Weights } from "../analysis/sco
 import { HORIZON_DEFAULT_INTERVAL, type Horizon, type Interval, type ResolvedAsset } from "../types";
 import { eurPerUnit } from "../fx";
 import { tradeCurrency } from "../client/eur";
-import type { Holding, HoldingTx } from "../client/holdings";
+import type { Holding, HoldingTx, HoldOrder } from "../client/holdings";
 import type { DivEdit } from "../analysis/dividends";
 import type { ChanceLogEntry } from "../client/chanceLog";
 import { allHistories, restoreHistories } from "../client/entries";
@@ -245,7 +245,7 @@ function sanitize(raw: unknown): AppData {
     weekly: d.weekly && typeof d.weekly.at === "number" ? d.weekly : null,
     chanceLog: Array.isArray(d.chanceLog) ? d.chanceLog.filter((x) => x && x.key && x.symbol) : [],
     divEdits: d.divEdits && typeof d.divEdits === "object" ? Object.fromEntries(Object.entries(d.divEdits).map(([k, v]) => [k, Array.isArray(v) ? v.filter((e) => e && Number.isFinite(e.ex)) : []])) : {},
-    holdings: Array.isArray(d.holdings) ? d.holdings.filter((h) => h && h.id && h.symbol).map((h) => ({ ...h, txs: Array.isArray(h.txs) ? h.txs.filter((t) => t && t.qty > 0 && t.price > 0) : [] })) : [],
+    holdings: Array.isArray(d.holdings) ? d.holdings.filter((h) => h && h.id && h.symbol).map((h) => ({ ...h, txs: Array.isArray(h.txs) ? h.txs.filter((t) => t && t.qty > 0 && t.price > 0) : [], orders: Array.isArray(h.orders) ? h.orders.filter((o) => o && o.id && o.priceEur > 0 && o.qty > 0) : undefined })) : [],
     settings: {
       ...DEFAULT_SETTINGS,
       ...s,
@@ -487,6 +487,44 @@ export const actions = {
   },
   removeHoldingTx(id: string, txId: string) {
     update((d) => ({ ...d, holdings: d.holdings.map((x) => (x.id === id ? { ...x, txs: x.txs.filter((t) => t.id !== txId) } : x)).filter((x) => x.txs.length > 0) }));
+  },
+  addHoldOrder(id: string, o: Omit<HoldOrder, "id" | "createdAt">) {
+    update((d) => ({ ...d, holdings: d.holdings.map((x) => (x.id === id ? { ...x, orders: [...(x.orders ?? []), { ...o, id: uid(), createdAt: Date.now() }] } : x)) }));
+  },
+  removeHoldOrder(id: string, orderId: string) {
+    update((d) => ({ ...d, holdings: d.holdings.map((x) => (x.id === id ? { ...x, orders: (x.orders ?? []).filter((o) => o.id !== orderId) } : x)) }));
+  },
+  setHoldOrderHit(id: string, orderId: string, hit: HoldOrder["hit"]) {
+    update((d) => ({ ...d, holdings: d.holdings.map((x) => (x.id === id ? { ...x, orders: (x.orders ?? []).map((o) => (o.id === orderId ? { ...o, hit } : o)) } : x)) }));
+  },
+  /** Order ausgeführt (live oder von Hand gebucht): Kauf/Verkauf eintragen (Gebühr 7,90 €), Order entfernen; Verkaufs-Orders werden auf die restlichen Stück gekürzt */
+  fillHoldOrder(id: string, orderId: string, priceEur: number, date: string, fee: number) {
+    update((d) => ({
+      ...d,
+      holdings: d.holdings.map((x) => {
+        if (x.id !== id) return x;
+        const o = (x.orders ?? []).find((y) => y.id === orderId);
+        if (!o) return x;
+        const held = x.txs.reduce((q, t) => (t.type === "buy" ? q + t.qty : t.type === "sell" ? q - t.qty : q), 0);
+        const qty = o.kind === "buy" ? o.qty : Math.min(o.qty, held);
+        if (!(qty > 0)) return { ...x, orders: (x.orders ?? []).filter((y) => y.id !== orderId) };
+        const tx: HoldingTx = { id: uid(), type: o.kind === "buy" ? "buy" : "sell", date, price: priceEur, qty, fee };
+        const left = o.kind === "buy" ? held + qty : held - qty;
+        let orders = (x.orders ?? []).filter((y) => y.id !== orderId);
+        if (left <= 1e-9) orders = orders.filter((y) => y.kind === "buy");
+        else {
+          // übrige Stops/Verkaufs-Orders dürfen nicht mehr Stück haben, als noch da sind
+          let free = left;
+          orders = orders.map((y) => {
+            if (y.kind === "buy") return y;
+            const q = Math.min(y.qty, free);
+            free -= q;
+            return q === y.qty ? y : { ...y, qty: q };
+          }).filter((y) => y.qty > 0);
+        }
+        return { ...x, txs: [...x.txs, tx], orders };
+      }),
+    }));
   },
   setHoldingTrend(id: string, trend: 1 | -1 | 0) {
     update((d) => ({ ...d, holdings: d.holdings.map((x) => (x.id === id ? { ...x, trend } : x)) }));

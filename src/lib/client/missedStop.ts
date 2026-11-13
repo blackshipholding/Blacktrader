@@ -11,6 +11,7 @@ import { getScan } from "./scanner";
 import { eurPerUnit } from "../fx";
 import { fxLookup, intervalForGap, INTERVAL_SEC, levelTouched } from "../analysis/missedStop";
 import { actions, getData, type Trade } from "../store/store";
+import type { Holding } from "./holdings";
 import type { Candle } from "../types";
 
 const KEY = "bt-last-seen";
@@ -102,6 +103,33 @@ async function checkTrade(t: Trade, sinceMs: number, now: number): Promise<void>
   }
 }
 
+/** Buy & Hold: wartende Orders (Stop, Verkaufs-Limit, Kauf-Limit) gegen die Kerzen seit dem letzten Besuch (Nutzer 13.11.2026) */
+async function checkHolding(h: Holding, sinceMs: number, now: number): Promise<void> {
+  const orders = (h.orders ?? []).filter((o) => !o.hit || o.hit.near);
+  if (!orders.length) return;
+  const iv = intervalForGap(now - sinceMs, h.kind === "crypto");
+  const cur = h.kind === "crypto" ? "USDT" : h.currency ?? "EUR";
+  const pair = fxPair(cur);
+  const sec = INTERVAL_SEC[iv];
+  let candles: Candle[];
+  let eurPer: (t: number) => number | null = () => 1;
+  try {
+    candles = (await api.candles(h, iv, 60e3)).candles;
+    if (pair) eurPer = fxLookup((await api.candles({ kind: "stock", symbol: pair.sym, name: pair.sym, yahooSymbol: pair.sym }, iv, 60e3)).candles, pair.toEur);
+  } catch {
+    return;
+  }
+  const s = getData().settings;
+  for (const o of orders) {
+    const r = levelTouched(candles, o.priceEur, eurPer, Math.max(sinceMs, o.createdAt) / 1000, sec, o.kind === "sell" ? "above" : "below");
+    if (!r || !(r.touched || r.near)) continue;
+    if (o.hit && o.hit.near === !r.touched && o.hit.at === (r.at ? r.at * 1000 : o.hit.at)) continue;
+    actions.setHoldOrderHit(h.id, o.id, { at: r.at ? r.at * 1000 : now, near: !r.touched, extremeEur: r.extremeEur });
+    const what = o.kind === "stop" ? "Stop" : o.kind === "sell" ? "Verkaufs-Limit" : "Kauf-Limit";
+    void notify(`${what} ${r.touched ? "berührt" : "knapp berührt"}: ${h.name}`, `Während die App zu war, ${r.touched ? "erreichte" : "näherte sich"} der Kurs ${what} ${eur(o.priceEur)} (${o.kind === "sell" ? "höchster" : "tiefster"} Stand ${eur(r.extremeEur)}). Bitte bei flatex prüfen und im Depot Buy & Hold buchen.`, { sound: s.sound, notifications: s.notifications, kind: o.kind === "buy" ? "info" : "sell" });
+  }
+}
+
 /** Watchlist: war ein Wert in der Abwesenheit im Einstiegsbereich? (nur Hinweis, einmal je Zone wie der Zonen-Alarm) */
 async function checkWatch(sinceMs: number, now: number): Promise<void> {
   const entries = getScan().entries;
@@ -148,6 +176,7 @@ async function checkAll(sinceMs: number): Promise<void> {
     if ((t.status !== "open" && t.status !== "pending") || t.strategy === "core") continue;
     await checkTrade(t, Math.max(sinceMs, t.openedAt ?? 0), now);
   }
+  for (const h of getData().holdings) await checkHolding(h, sinceMs, now);
   await checkWatch(sinceMs, now);
 }
 
@@ -184,3 +213,6 @@ export const clearMissed = (id: string, index?: number) => {
   const rest = index == null ? [] : (t.missed ?? []).filter((_, i) => i !== index);
   actions.updateTrade(id, { missed: rest.length ? rest : undefined });
 };
+
+/** Buy & Hold: Hinweis „berührt“ einer Order entfernen (die Order bleibt bestehen) */
+export const clearHoldHit = (id: string, orderId: string) => actions.setHoldOrderHit(id, orderId, undefined);

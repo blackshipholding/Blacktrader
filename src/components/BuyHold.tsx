@@ -10,7 +10,8 @@ import { AddAsset } from "./AddAsset";
 import { Sheet } from "./Sheet";
 import { displayCurrency } from "@/lib/client/eur";
 import { api } from "@/lib/client/api";
-import { HOLD_FEE, summarizeHolding, totalTax, type Holding } from "@/lib/client/holdings";
+import { HOLD_FEE, orderError, reservedForSale, summarizeHolding, totalTax, type HoldOrder, type Holding } from "@/lib/client/holdings";
+import { clearHoldHit } from "@/lib/client/missedStop";
 import { eurPerUnit, toEur } from "@/lib/fx";
 import { dividendPerShareEur, netOfTax } from "@/lib/client/dividends";
 import { creditsOfHolding, holdingSummary, loadForPositions, useDividendBook } from "@/lib/client/dividendBook";
@@ -32,6 +33,7 @@ const num = (s: string) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
+type OrderForm = { holding: Holding; kind: HoldOrder["kind"] } | null;
 type Form = { mode: "buy" | "sell" | "div"; holding?: Holding; asset?: ResolvedAsset } | null;
 
 /** Aktueller Kurs in Euro je Wert (alle 60 Sekunden) */
@@ -91,6 +93,58 @@ function HoldCard({ h, price, value, open, onOpenPosition, onOpenAsset }: { h: H
   );
 }
 
+const ORDER_LABEL = { stop: "Stop-Loss", sell: "Verkaufs-Limit", buy: "Kauf-Limit" } as const;
+const qtyText = (q: number) => q.toLocaleString("de-DE", { maximumFractionDigits: 4 });
+
+/** Hinweise: Order in der Abwesenheit berührt – nach Zeit sortiert; „Jetzt buchen“ trägt Kauf/Verkauf ein */
+function HoldHitBanner() {
+  const holdings = useAppData((d) => d.holdings);
+  const items = holdings.flatMap((h) => (h.orders ?? []).filter((o) => o.hit).map((o) => ({ h, o }))).sort((a, b) => a.o.hit!.at - b.o.hit!.at);
+  if (!items.length) return null;
+  return (
+    <div className="space-y-2">
+      {items.map(({ h, o }) => (
+        <div key={o.id} className="card border-amber-400/40 bg-amber-500/10 p-3.5">
+          <div className="text-[15px] font-semibold text-amber-200">
+            {ORDER_LABEL[o.kind]} {o.hit!.near ? "knapp berührt" : "berührt"}: {h.name}
+          </div>
+          <div className="mt-1 text-[14px] text-stone-200">
+            {qtyText(o.qty)} Stück bei {eur(o.priceEur)} – während die App zu war ({o.kind === "sell" ? "höchster" : "tiefster"} Stand {eur(o.hit!.extremeEur)}, {new Date(o.hit!.at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}). Bitte bei flatex den echten Preis prüfen.
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {!o.hit!.near && (
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  const v = window.prompt(`Echter Preis je Stück in € bei flatex (Vorschlag: ${o.priceEur.toFixed(2).replace(".", ",")})`, o.priceEur.toFixed(2).replace(".", ","));
+                  const p = v == null ? 0 : num(v);
+                  if (p > 0) actions.fillHoldOrder(h.id, o.id, p, new Date(o.hit!.at).toISOString().slice(0, 10), HOLD_FEE);
+                }}
+              >
+                {o.kind === "buy" ? "Kauf buchen" : "Verkauf buchen"}
+              </button>
+            )}
+            <button className={`btn ${o.hit!.near ? "col-span-2" : ""}`} onClick={() => clearHoldHit(h.id, o.id)}>
+              {o.hit!.near ? "Erledigt" : "Nicht ausgelöst – Order bleibt"}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Wartende Orders unter der Karte (Antippen → Detail) */
+function HoldOrderLine({ h, onClick }: { h: Holding; onClick: () => void }) {
+  const o = h.orders ?? [];
+  if (!o.length) return null;
+  return (
+    <button className="num -mt-1 w-full rounded-xl bg-white/5 px-3 py-2 text-left text-[14px] text-stone-300 active:bg-white/10" onClick={onClick}>
+      {[...o].sort((a, b) => b.priceEur - a.priceEur).map((x) => `${ORDER_LABEL[x.kind]} ${eur(x.priceEur)} · ${qtyText(x.qty)} Stück`).join("  ·  ")}
+    </button>
+  );
+}
+
 export function BuyHold() {
   const holdings = useAppData((d) => d.holdings);
   const scan = useScan();
@@ -110,6 +164,7 @@ export function BuyHold() {
   const divGrossYear = useAnnualDividendsGross(holdings.map((h) => ({ id: h.id, asset: h, qty: summarizeHolding(h).qty, priceEur: prices[h.id] })));
   const [form, setForm] = useState<Form>(null);
   const [detail, setDetail] = useState<Holding | null>(null);
+  const [orderForm, setOrderForm] = useState<OrderForm>(null);
   const { open: openSheet, sheet: assetSheet } = useAssetSheet();
 
   const rows = useMemo(
@@ -170,6 +225,7 @@ export function BuyHold() {
         </div>
       </div>
 
+      <HoldHitBanner />
       <button className="btn-primary w-full" onClick={() => setForm({ mode: "buy" })}>
         + Kauf eintragen (Aktie oder ETF)
       </button>
@@ -178,7 +234,10 @@ export function BuyHold() {
 
       <div className="space-y-3">
         {held.map(({ h, price, value: v, open }) => (
-          <HoldCard key={h.id} h={h} price={price} value={v} open={open} onOpenPosition={() => setDetail(h)} onOpenAsset={(a, hz, notes) => openSheet(a, hz, { withEntry: true, tipOnly: true, notes })} />
+          <div key={h.id} className="space-y-2">
+            <HoldCard h={h} price={price} value={v} open={open} onOpenPosition={() => setDetail(h)} onOpenAsset={(a, hz, notes) => openSheet(a, hz, { withEntry: true, tipOnly: true, notes })} />
+            <HoldOrderLine h={h} onClick={() => setDetail(h)} />
+          </div>
         ))}
         {sold.length > 0 && (
           <>
@@ -208,6 +267,7 @@ export function BuyHold() {
       <p className="text-[13px] text-stone-500">KESt geschätzt wie in Österreich: 27,5 % auf verkaufte Gewinne (gleitender Durchschnittspreis, Gebühren nicht abziehbar, Gewinne und Verluste eines Jahres verrechnet). Maßgeblich ist die Abrechnung deiner Bank.</p>
 
       <TxSheet form={form} onClose={() => setForm(null)} />
+      <OrderSheet form={orderForm} price={orderForm ? prices[orderForm.holding.id] : undefined} onClose={() => setOrderForm(null)} />
       <DividendListSheet
         open={showDivs}
         onClose={() => setShowDivs(false)}
@@ -220,13 +280,13 @@ export function BuyHold() {
       {assetSheet}
 
       <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail?.name ?? ""}>
-        {detail && <HoldingDetail id={detail.id} onBuy={(h) => (setDetail(null), setForm({ mode: "buy", holding: h }))} onSell={(h) => (setDetail(null), setForm({ mode: "sell", holding: h }))} onDiv={(h) => (setDetail(null), setForm({ mode: "div", holding: h }))} onClose={() => setDetail(null)} />}
+        {detail && <HoldingDetail id={detail.id} onOrder={(h, kind) => (setDetail(null), setOrderForm({ holding: h, kind }))} onBuy={(h) => (setDetail(null), setForm({ mode: "buy", holding: h }))} onSell={(h) => (setDetail(null), setForm({ mode: "sell", holding: h }))} onDiv={(h) => (setDetail(null), setForm({ mode: "div", holding: h }))} onClose={() => setDetail(null)} />}
       </Sheet>
     </div>
   );
 }
 
-function HoldingDetail({ id, onBuy, onSell, onDiv, onClose }: { id: string; onBuy: (h: Holding) => void; onSell: (h: Holding) => void; onDiv: (h: Holding) => void; onClose: () => void }) {
+function HoldingDetail({ id, onOrder, onBuy, onSell, onDiv, onClose }: { id: string; onOrder: (h: Holding, kind: HoldOrder["kind"]) => void; onBuy: (h: Holding) => void; onSell: (h: Holding) => void; onDiv: (h: Holding) => void; onClose: () => void }) {
   const h = useAppData((d) => d.holdings.find((x) => x.id === id));
   if (!h) return <p className="text-stone-400">Gelöscht.</p>;
   const s = summarizeHolding(h);
@@ -245,6 +305,12 @@ function HoldingDetail({ id, onBuy, onSell, onDiv, onClose }: { id: string; onBu
         <button className="btn col-span-2" onClick={() => onDiv(h)}>
           Dividende eintragen
         </button>
+        <button className="btn" disabled={s.qty - reservedForSale(h) <= 1e-9} onClick={() => onOrder(h, "stop")}>
+          Stop setzen
+        </button>
+        <button className="btn" onClick={() => onOrder(h, "sell")}>
+          Orders (Limit)
+        </button>
         <button
           className="btn-danger col-span-2"
           onClick={() => {
@@ -257,6 +323,25 @@ function HoldingDetail({ id, onBuy, onSell, onDiv, onClose }: { id: string; onBu
           Wert löschen
         </button>
       </div>
+      {(h.orders?.length ?? 0) > 0 && (
+        <>
+          <div className="label">Wartende Orders (bei flatex gesetzt)</div>
+          <ul className="divide-y divide-white/5 rounded-xl border border-white/10">
+            {[...(h.orders ?? [])]
+              .sort((a, b) => b.priceEur - a.priceEur)
+              .map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="num text-[14px] text-stone-300">
+                    <span className={o.kind === "buy" ? "text-up" : o.kind === "stop" ? "text-down" : "text-sky-200"}>{ORDER_LABEL[o.kind]}</span> {eur(o.priceEur)} · {qtyText(o.qty)} Stück
+                  </span>
+                  <button className="text-[13px] text-stone-500 underline" onClick={() => window.confirm("Diese Order löschen? (Bei flatex bitte auch löschen.)") && actions.removeHoldOrder(h.id, o.id)}>
+                    löschen
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </>
+      )}
       <div className="label">Käufe und Verkäufe</div>
       <ul className="divide-y divide-white/5 rounded-xl border border-white/10">
         {[...h.txs]
@@ -381,6 +466,61 @@ function TxSheet({ form, onClose }: { form: Form; onClose: () => void }) {
         {err && <p className="text-red-300">{err}</p>}
         <button className="btn-primary w-full" onClick={save}>
           {div ? "Dividende speichern" : sell ? "Verkauf speichern" : "Kauf speichern"}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+
+/** Stop oder Order eintragen – Preis in Euro, Stückzahl frei wählbar (mehrere Stops je Aktie möglich) */
+function OrderSheet({ form, price, onClose }: { form: OrderForm; price?: number; onClose: () => void }) {
+  const [kind, setKind] = useState<HoldOrder["kind"]>("stop");
+  const [p, setP] = useState("");
+  const [q, setQ] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!form) return;
+    setKind(form.kind);
+    setP("");
+    setQ("");
+    setErr(null);
+  }, [form]);
+  if (!form) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
+  const h = form.holding;
+  const free = summarizeHolding(h).qty - reservedForSale(h);
+  const save = () => {
+    const o = { kind, priceEur: num(p), qty: num(q) };
+    const e = orderError(h, o, price);
+    if (e) return setErr(e);
+    actions.addHoldOrder(h.id, o);
+    onClose();
+  };
+  return (
+    <Sheet open onClose={onClose} title={`${ORDER_LABEL[kind]}: ${h.name}`}>
+      <div className="space-y-3 text-[15px]">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1 text-[14px]">
+          {(["stop", "sell", "buy"] as const).map((k) => (
+            <button key={k} className={`rounded-lg py-2 ${kind === k ? "bg-white/15 text-stone-50" : "text-stone-400"}`} onClick={() => setKind(k)}>
+              {ORDER_LABEL[k]}
+            </button>
+          ))}
+        </div>
+        <p className="text-stone-400">
+          {kind === "stop" ? "Verkauft bei flatex, wenn der Kurs auf diesen Preis fällt." : kind === "sell" ? "Verkauft bei flatex, wenn der Kurs auf diesen Preis steigt." : "Kauft bei flatex, wenn der Kurs auf diesen Preis fällt."} Hier trägst du sie genauso ein – die App prüft sie live und auch rückwirkend, wenn sie zu war.
+          {price ? ` Kurs jetzt: ${eur(price)}.` : ""}
+        </p>
+        <label className="block text-stone-300">
+          Preis je Stück in €
+          <input className="input num mt-1" inputMode="decimal" placeholder="z. B. 95,00" value={p} onChange={(e) => setP(e.target.value)} />
+        </label>
+        <label className="block text-stone-300">
+          Stückzahl{kind !== "buy" ? ` (frei: ${qtyText(Math.max(0, free))})` : ""}
+          <input className="input num mt-1" inputMode="decimal" placeholder={kind !== "buy" ? `z. B. ${qtyText(Math.max(0, free))}` : "z. B. 10"} value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        {err && <p className="text-red-300">{err}</p>}
+        <button className="btn-primary w-full" onClick={save}>
+          {ORDER_LABEL[kind]} speichern
         </button>
       </div>
     </Sheet>

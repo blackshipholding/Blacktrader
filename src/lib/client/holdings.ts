@@ -19,6 +19,18 @@ export interface HoldingTx {
   fee: number;
 }
 
+/** Wartende Order bei flatex (Buy & Hold, Nutzer 13.11.2026): Stop-Loss (verkauft bei Kurs ≤ Preis), Verkaufs-Limit (≥ Preis) oder Kauf-Limit (≤ Preis). Preis in Euro. */
+export interface HoldOrder {
+  id: string;
+  kind: "stop" | "sell" | "buy";
+  /** Preis je Stück in Euro */
+  priceEur: number;
+  qty: number;
+  createdAt: number;
+  /** In der Abwesenheit berührt (oder knapp) – wartet auf „Jetzt buchen“ oder „Erledigt“ */
+  hit?: { at: number; near: boolean; extremeEur: number };
+}
+
 export interface Holding {
   id: string;
   symbol: string;
@@ -30,6 +42,8 @@ export interface Holding {
   exchange?: string;
   currency?: string;
   txs: HoldingTx[];
+  /** Wartende Orders (mehrere Stops und Limits möglich) */
+  orders?: HoldOrder[];
   /** Großer Trend laut Blacktrader (1 steigend, −1 fallend, 0 unklar) – für die Meldung bei Änderung */
   trend?: 1 | -1 | 0;
 }
@@ -108,3 +122,29 @@ export function totalTax(summaries: HoldingSummary[]): number {
   for (const s of summaries) for (const [k, v] of Object.entries(s.realizedByYear)) y[k] = (y[k] ?? 0) + v;
   return Object.values(y).reduce((s, g) => s + Math.max(0, g) * HOLD_TAX, 0);
 }
+
+/** Stück, die schon durch Stops und Verkaufs-Limits gebunden sind (flatex lässt nicht mehr Stück in Orders zu, als im Depot liegen) */
+export const reservedForSale = (h: Pick<Holding, "orders">, exceptId?: string): number =>
+  (h.orders ?? []).filter((o) => (o.kind === "stop" || o.kind === "sell") && o.id !== exceptId).reduce((a, o) => a + o.qty, 0);
+
+/** Prüft eine neue Order. Gibt eine Fehlermeldung oder null zurück. `priceEur` = aktueller Kurs in Euro (falls bekannt). */
+export function orderError(h: Pick<Holding, "orders" | "txs">, o: { kind: HoldOrder["kind"]; priceEur: number; qty: number }, priceEur?: number | null): string | null {
+  if (!(o.priceEur > 0)) return "Bitte den Preis in Euro eingeben.";
+  if (!(o.qty > 0)) return "Bitte die Stückzahl eingeben.";
+  if (o.kind !== "buy") {
+    const free = summarizeHolding(h).qty - reservedForSale(h);
+    if (o.qty > free + 1e-9) return `Frei sind nur ${free.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück (der Rest hängt schon in anderen Stops/Verkaufs-Orders).`;
+  }
+  if (priceEur && priceEur > 0) {
+    if (o.kind === "stop" && o.priceEur >= priceEur) return "Ein Stop muss unter dem aktuellen Kurs liegen, sonst würde er sofort auslösen.";
+    if (o.kind === "sell" && o.priceEur <= priceEur) return "Ein Verkaufs-Limit muss über dem aktuellen Kurs liegen.";
+    if (o.kind === "buy" && o.priceEur >= priceEur) return "Ein Kauf-Limit muss unter dem aktuellen Kurs liegen.";
+  }
+  return null;
+}
+
+/** Ausgelöst? Preis in Euro. Stop und Kauf-Limit: Kurs ≤ Preis, Verkaufs-Limit: Kurs ≥ Preis. */
+export const orderTriggered = (o: Pick<HoldOrder, "kind" | "priceEur">, nowEur: number): boolean => (o.kind === "sell" ? nowEur >= o.priceEur : nowEur <= o.priceEur);
+
+/** Ausführungspreis wie bei flatex: Stop = Marktpreis (aktueller Kurs, nie besser als der Stop), Limit = Limit-Preis */
+export const orderFillPrice = (o: Pick<HoldOrder, "kind" | "priceEur">, nowEur: number): number => (o.kind === "stop" ? Math.min(o.priceEur, nowEur) : o.priceEur);

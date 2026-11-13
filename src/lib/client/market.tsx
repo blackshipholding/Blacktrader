@@ -16,7 +16,8 @@ import { SIGNAL_LABEL } from "../analysis/score";
 import { tradeReturnPct } from "../analysis/stats";
 import { fmtPrice, money } from "../analysis/persona";
 import { tradeCurrency, tradeReturnEur } from "./eur";
-import { eurPerUnit, onFx } from "../fx";
+import { eurPerUnit, onFx, toEur } from "../fx";
+import { HOLD_FEE, orderFillPrice, orderTriggered, type Holding } from "./holdings";
 import { refreshFx } from "./fx";
 import { marketClosed } from "./marketHours";
 import { actions, getData, useAppData, type Trade, type WatchItem } from "../store/store";
@@ -79,6 +80,8 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   const watchlist = useAppData((d) => d.watchlist);
   const openTrades = useAppData((d) => d.trades.filter((t) => t.status !== "closed"));
   const settings = useAppData((d) => d.settings);
+  // Buy & Hold mit wartenden Orders (Stop/Limit) wird live mitüberwacht
+  const holdOrders = useAppData((d) => d.holdings.filter((h) => (h.orders?.length ?? 0) > 0));
   const [live, setLive] = useState<Record<string, LiveState>>({});
   const [analyses, setAnalyses] = useState<Record<string, ItemAnalysis>>({});
   const [reloadTick, setReloadTick] = useState(0);
@@ -90,8 +93,9 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     const map = new Map<string, Instrument>();
     for (const w of watchlist) map.set(instrumentKey(w), w);
     for (const t of openTrades) if (!map.has(instrumentKey(t))) map.set(instrumentKey(t), { kind: t.kind, symbol: t.symbol, name: t.name, binanceSymbol: t.binanceSymbol, yahooSymbol: t.yahooSymbol });
+    for (const h of holdOrders) if (!map.has(instrumentKey(h))) map.set(instrumentKey(h), { kind: h.kind, symbol: h.symbol, name: h.name, binanceSymbol: h.binanceSymbol, yahooSymbol: h.yahooSymbol });
     return [...map.values()];
-  }, [watchlist, openTrades]);
+  }, [watchlist, openTrades, holdOrders]);
   const instrumentsKey = instruments.map((i) => `${instrumentKey(i)}|${i.binanceSymbol ?? ""}|${i.yahooSymbol ?? ""}`).join(",");
 
   // ---- Live-Kurse
@@ -289,6 +293,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       }
       if (Object.keys(next).length) setAnalyses((p) => ({ ...p, ...next }));
       trackTrades(d.trades, liveRef.current);
+      trackHoldOrders(d.holdings, liveRef.current);
       checkWatchZones(d.watchlist, liveRef.current, instrumentKey);
     };
     run();
@@ -335,6 +340,28 @@ function closeOnWave5End(symbol: string, horizon: Horizon, candles: Candle[]) {
     const returnPct = tradeReturnEur(t, exit);
     actions.updateTrade(t.id, { status: "closed", exit, closedAt: Date.now(), closeReason: "welle5", returnPct, fxExit: eurPerUnit(tradeCurrency(t)) ?? undefined, lastPrice: exit });
     notify(`Gewinn gesichert: ${t.symbol}`, `Welle 5 läuft aus (RSI wird schwächer) – Trade bei ${money(exit, tradeCurrency(t))} geschlossen · ${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2).replace(".", ",")} %`, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
+  }
+}
+
+/** Buy & Hold: Stops und Limits live prüfen (Preis in Euro, wie bei flatex). Ausgelöst → Kauf/Verkauf wird eingetragen (Gebühr 7,90 €). Börse zu → nichts. */
+function trackHoldOrders(holdings: Holding[], live: Record<string, LiveState>) {
+  const s = getData().settings;
+  for (const h of holdings) {
+    if (!h.orders?.length) continue;
+    const lv = live[instrumentKey(h)];
+    if (!lv?.price || lv.status === "offline" || marketClosed(h.kind, lv.time)) continue;
+    const cur = lv.currency ?? h.currency ?? "EUR";
+    const nowEur = cur === "EUR" ? lv.price : toEur(lv.price, cur);
+    if (nowEur == null || !(nowEur > 0)) continue;
+    for (const o of h.orders) {
+      if (o.hit && !o.hit.near) continue; // schon als „berührt“ gemeldet – wartet auf dich
+      if (!orderTriggered(o, nowEur)) continue;
+      const price = orderFillPrice(o, nowEur);
+      actions.fillHoldOrder(h.id, o.id, price, new Date().toISOString().slice(0, 10), HOLD_FEE);
+      const what = o.kind === "stop" ? "Stop ausgelöst" : o.kind === "sell" ? "Verkaufs-Limit erreicht" : "Kauf-Limit erreicht";
+      notify(`${what}: ${h.name}`, `${o.kind === "buy" ? "Gekauft" : "Verkauft"}: ${o.qty.toLocaleString("de-DE", { maximumFractionDigits: 4 })} Stück zu ${price.toFixed(2).replace(".", ",")} € (Buy & Hold eingetragen, 7,90 € Gebühr). Bitte bei flatex den echten Preis prüfen und bei Abweichung korrigieren.`, { sound: s.sound, notifications: s.notifications, kind: o.kind === "buy" ? "buy" : "sell" });
+      break; // Bestand hat sich geändert – nächste Runde mit frischen Daten
+    }
   }
 }
 
