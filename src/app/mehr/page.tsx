@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconChart, IconChevron, IconDownload, IconGear, IconShield, IconSpark } from "@/components/Icons";
 import { actions, listBackups, readBackup, useAppData } from "@/lib/store/store";
 import { downloadBackup, lastAutoBackup } from "@/lib/client/autoBackup";
-import { disableShare, enableShare, renewCode, shareCode, shareLastAt, shareOn, syncNow } from "@/lib/client/dividendShare";
+import { disableShare, enableShare, renewCode, shareCode, shareLastAt, shareLastCount, shareOn, syncNow } from "@/lib/client/dividendShare";
 
 function Row({ href, icon, title, text }: { href: string; icon: React.ReactNode; title: string; text: string }) {
   return (
@@ -151,11 +151,13 @@ function ShareCard() {
   const [on, setOn] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [at, setAt] = useState<number | null>(null);
+  const [count, setCount] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   useEffect(() => {
     setOn(shareOn());
     setCode(shareCode());
     setAt(shareLastAt());
+    setCount(shareLastCount());
   }, []);
   return (
     <section className="card space-y-3 p-4">
@@ -164,7 +166,7 @@ function ShareCard() {
       <label className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl bg-white/5 px-3 text-[15px] text-stone-200">
         <span>
           Automatisch senden
-          <span className="block text-[13px] text-stone-400">Zuletzt: {at ? new Date(at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</span>
+          <span className="block text-[13px] text-stone-400">Zuletzt: {at ? new Date(at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}{count != null ? ` · ${count} Dividenden` : ""}</span>
         </span>
         <input
           type="checkbox"
@@ -191,9 +193,14 @@ function ShareCard() {
             <button
               className="btn-primary"
               onClick={async () => {
-                const ok = await syncNow();
+                const r = await syncNow(true);
                 setAt(shareLastAt());
-                setMsg(ok ? "Gesendet." : "Senden hat nicht geklappt – später noch einmal versuchen.");
+                setCount(shareLastCount());
+                setMsg(
+                  r.ok
+                    ? `Gesendet: ${r.count} Dividenden.${r.count === 0 ? " (Du hast bei Buy & Hold noch keine Dividende.)" : ""}${r.storage === "memory" ? " ACHTUNG: Beim Server ist kein dauerhafter Speicher (KV) verbunden – die Daten gehen verloren. Bei Vercel unter Storage verbinden und die App neu bereitstellen." : ""}`
+                    : `Senden hat nicht geklappt: ${r.note ?? "unbekannter Fehler"}`,
+                );
               }}
             >
               Jetzt senden

@@ -8,7 +8,9 @@ const get = (c: string) => GET(new Request(`http://x/api/share-dividends?code=${
 describe("Dividenden an Blacktime", () => {
   it("speichert und liefert nur mit dem richtigen Code", async () => {
     const rows = [{ name: "Muster", symbol: "X", date: "2025-01-02", shares: 5, gross: 10, net: 7.25, source: "auto" }, { name: "kaputt", symbol: "Y", date: "morgen", gross: 1, net: 1 }];
-    expect((await post({ code, rows })).status).toBe(200);
+    const pr = await post({ code, rows });
+    expect(pr.status).toBe(200);
+    expect((await pr.json()).storage).toBe("memory");
     const r = await (await get(code)).json();
     expect(r.rows).toHaveLength(1);
     expect(r.rows[0].net).toBe(7.25);

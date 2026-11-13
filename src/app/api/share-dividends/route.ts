@@ -2,7 +2,7 @@
 // Der Kopplungs-Code (nur du kennst ihn) ist zugleich der Schlüssel: ohne den Code gibt es keine Daten.
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { getJson, setJson } from "@/lib/trainer/storage";
+import { getJson, setJson, storageKind } from "@/lib/trainer/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       rows.push({ name: r.name.slice(0, 80), symbol: r.symbol.slice(0, 20), date: r.date, shares: Number.isFinite(r.shares) && r.shares! >= 0 ? r.shares! : 0, gross: r.gross!, net: r.net!, source: r.source === "hand" ? "hand" : "auto" });
     }
     await setJson(keyOf(b.code), { at: Date.now(), rows });
-    return json({ ok: true, count: rows.length });
+    return json({ ok: true, count: rows.length, storage: storageKind() });
   } catch (e) {
     return json({ ok: false, note: (e as Error).message }, 500);
   }

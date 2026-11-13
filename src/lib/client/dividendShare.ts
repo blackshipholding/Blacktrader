@@ -19,6 +19,7 @@ const CODE = "bt-share-code";
 const ON = "bt-share-on";
 const SIG = "bt-share-sig";
 const AT = "bt-share-at";
+const COUNT = "bt-share-count";
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
 const ls = {
@@ -30,6 +31,9 @@ const ls = {
 export const shareOn = () => ls.get(ON) === "1" && !!ls.get(CODE);
 export const shareCode = () => ls.get(CODE);
 export const shareLastAt = () => Number(ls.get(AT)) || null;
+export const shareLastCount = () => { const v = ls.get(COUNT); return v == null ? null : Number(v); };
+
+export interface ShareResult { ok: boolean; count: number; storage?: "kv" | "memory"; note?: string }
 
 function newCode(): string {
   const a = new Uint8Array(24);
@@ -42,7 +46,7 @@ export function enableShare(): string {
   ls.set(CODE, c);
   ls.set(ON, "1");
   ls.del(SIG);
-  void syncNow();
+  void syncNow(true);
   return c;
 }
 export function disableShare(): void {
@@ -65,21 +69,25 @@ export function buildShareRows(now = Date.now()): ShareRow[] {
 }
 
 let busy = false;
-export async function syncNow(): Promise<boolean> {
+/** Liste senden. `force`: auch senden, wenn sich nichts geändert hat („Jetzt senden“). */
+export async function syncNow(force = false): Promise<ShareResult> {
   const code = shareCode();
-  if (!shareOn() || !code || busy) return false;
+  if (!shareOn() || !code) return { ok: false, count: 0, note: "Senden ist ausgeschaltet." };
+  if (busy) return { ok: false, count: 0, note: "Es läuft schon ein Senden." };
   const rows = buildShareRows();
   const sig = JSON.stringify(rows);
-  if (sig === ls.get(SIG)) return true;
+  if (!force && sig === ls.get(SIG)) return { ok: true, count: rows.length };
   busy = true;
   try {
     const res = await fetch("/api/share-dividends", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, rows }) });
-    if (!res.ok) return false;
+    const j = (await res.json().catch(() => null)) as { ok?: boolean; count?: number; storage?: "kv" | "memory"; note?: string } | null;
+    if (!res.ok || !j?.ok) return { ok: false, count: rows.length, note: j?.note ?? `Fehler ${res.status}` };
     ls.set(SIG, sig);
     ls.set(AT, String(Date.now()));
-    return true;
+    ls.set(COUNT, String(rows.length));
+    return { ok: true, count: j.count ?? rows.length, storage: j.storage };
   } catch {
-    return false;
+    return { ok: false, count: rows.length, note: "Keine Verbindung." };
   } finally {
     busy = false;
   }
