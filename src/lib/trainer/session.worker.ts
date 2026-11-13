@@ -48,10 +48,20 @@ async function analysts(symbol: string) {
   return null;
 }
 
+/** Yahoo schonen: zwischen zwei Abrufen mindestens 200 ms (auch wenn mehrere gleichzeitig laufen) */
+let nextSlot = 0;
+async function pace() {
+  const now = Date.now();
+  const at = Math.max(now, nextSlot);
+  nextSlot = at + 200;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+}
+
 async function fetchSeries(spec: SeriesSpec): Promise<Candle[] | null> {
   const url = `/api/history?yahoo=${encodeURIComponent(spec.symbol)}&interval=${spec.interval}&days=${spec.days}`;
   for (let i = 0; i < 4; i++) {
     try {
+      await pace();
       const r = await fetch(url);
       if (r.status === 429) {
         await new Promise((res) => setTimeout(res, 3000 * (i + 1)));
@@ -87,9 +97,9 @@ async function runRetest(m: RetestMsg) {
     const [kind, horizon] = p.cell.split(":") as [AssetKind, Horizon];
     const specs = pickSubset(sessionUniverse(p.cell, m.extra), m.day);
     const series: SeriesWithStep[] = [];
-    for (let i = 0; i < specs.length && !stop; i += 8) {
-      say(`Vorschlag ${p.cell}: Kursdaten laden (${Math.min(i + 8, specs.length)}/${specs.length})`);
-      const batch = await Promise.all(specs.slice(i, i + 8).map((sp) => load(sp)));
+    for (let i = 0; i < specs.length && !stop; i += 3) {
+      say(`Vorschlag ${p.cell}: Kursdaten laden (${Math.min(i + 3, specs.length)}/${specs.length})`);
+      const batch = await Promise.all(specs.slice(i, i + 3).map((sp) => load(sp)));
       batch.forEach((c, j) => {
         const sp = specs[i + j];
         if (c && c.length > 300) series.push({ name: sp.symbol, kind, horizon, interval: sp.interval, candles: c, step: sp.step });
