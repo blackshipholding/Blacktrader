@@ -17,7 +17,9 @@ import { regionOf, worldAssets, type WorldRegion } from "./worldList";
 
 const LOG_KEY = "bt-world-log-v1";
 const PROG_KEY = "bt-world-scan-v1";
-const OFF_KEY = "bt-world-scan-off";
+const ON_KEY = "bt-world-scan-on";
+/** Höchstens so viele Werte pro Tag (Yahoo schonen): bei ~966 Werten dauert ein voller Umlauf rund 7 Tage */
+export const DAILY_MAX = 150;
 const BATCH = 60;
 const PARALLEL = 3;
 /** Schutz für Yahoo: zwischen zwei Abfragen kurz warten; fällt mehr als die Hälfte einer Etappe aus (z. B. „zu viele Anfragen“), wird für heute abgebrochen */
@@ -27,9 +29,10 @@ const MAX_FAIL_SHARE = 0.5;
 export type WorldEntry = ChanceLogEntry & { region: WorldRegion };
 export interface WorldProgress {
   day: string;
-  done: number;
-  total: number;
-  finishedAt?: number;
+  /** Wo der Umlauf als Nächstes weitermacht */
+  cursor: number;
+  /** Heute schon gesuchte Werte */
+  doneToday: number;
 }
 
 let cache: WorldEntry[] | null = null;
@@ -62,9 +65,10 @@ const saveLog = (l: WorldEntry[]) => {
 export const useWorldLog = (): WorldEntry[] =>
   useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), getWorldLog, () => []);
 export const useWorldBusy = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => busy, () => busy);
-export const worldScanOn = () => rd<boolean>(OFF_KEY, false) === false;
+/** Standard AUS (Nutzer 13.11.2026: nicht gesperrt werden) – erst auf Wunsch einschalten */
+export const worldScanOn = () => rd<boolean>(ON_KEY, false) === true;
 export const setWorldScanOn = (on: boolean) => {
-  wr(OFF_KEY, !on);
+  wr(ON_KEY, on);
   emit();
 };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -138,22 +142,24 @@ async function scanOne(asset: ResolvedAsset, ctx: Awaited<ReturnType<typeof fetc
   return true;
 }
 
-/** Heutige Welt-Suche starten (oder fortsetzen). `force`: auch wenn heute schon fertig. */
+/** Heutigen Teil der Welt-Suche starten (höchstens DAILY_MAX Werte, danach am nächsten Tag der nächste Teil). `force`: noch einen Teil heute. */
 export async function runWorldScan(force = false): Promise<void> {
   if (busy.running || typeof window === "undefined") return;
   const day = today();
   const all = worldAssets();
-  let prog = rd<WorldProgress | null>(PROG_KEY, null);
-  if (!prog || prog.day !== day) prog = { day, done: 0, total: all.length };
-  else if (prog.finishedAt && !force) return;
-  else if (prog.finishedAt && force) prog = { day, done: 0, total: all.length };
-  busy = { running: true, text: `Welt-Suche ${prog.done}/${all.length}` };
+  const quota = Math.min(DAILY_MAX, all.length);
+  let prog = rd<WorldProgress | null>(PROG_KEY, null) ?? { day, cursor: 0, doneToday: 0 };
+  if (prog.day !== day) prog = { day, cursor: prog.cursor % all.length, doneToday: 0 };
+  if (prog.doneToday >= quota && !force) return;
+  if (force && prog.doneToday >= quota) prog = { ...prog, doneToday: 0 };
+  busy = { running: true, text: `Welt-Suche 0/${quota}` };
   emit();
   try {
     await Promise.race([refreshTrainerParams(), new Promise((r) => setTimeout(r, 3000))]);
     const ctx = await fetchMarketContext();
-    while (prog.done < all.length) {
-      const batch = all.slice(prog.done, prog.done + BATCH);
+    while (prog.doneToday < quota) {
+      const n = Math.min(BATCH, quota - prog.doneToday);
+      const batch = Array.from({ length: n }, (_, i) => all[(prog.cursor + i) % all.length]);
       const log = [...getWorldLog()];
       const add: WorldEntry[] = [];
       let failed = 0;
@@ -166,19 +172,13 @@ export async function runWorldScan(force = false): Promise<void> {
         await new Promise((r) => setTimeout(r, PAUSE_MS));
       });
       saveLog([...log, ...add]);
-      if (failed > batch.length * MAX_FAIL_SHARE) {
-        // Yahoo bremst oder das Netz fehlt: nicht weiter hämmern, beim nächsten Start an derselben Stelle weitermachen
-        busy = { running: false, text: "" };
-        emit();
-        return;
-      }
-      prog = { ...prog, done: prog.done + batch.length };
+      if (failed > batch.length * MAX_FAIL_SHARE) return; // Yahoo bremst oder kein Netz: nichts weiter, beim nächsten Mal an derselben Stelle
+      prog = { day, cursor: (prog.cursor + n) % all.length, doneToday: prog.doneToday + n };
       wr(PROG_KEY, prog);
-      busy = { running: true, text: `Welt-Suche ${prog.done}/${all.length}` };
+      busy = { running: true, text: `Welt-Suche ${prog.doneToday}/${quota}` };
       emit();
       if (typeof document !== "undefined" && document.visibilityState === "hidden") break; // im Hintergrund pausieren
     }
-    if (prog.done >= all.length) wr(PROG_KEY, { ...prog, finishedAt: Date.now() });
   } finally {
     busy = { running: false, text: "" };
     emit();
