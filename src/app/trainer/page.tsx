@@ -477,9 +477,26 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
             <span className={p.status === "ready" ? "text-emerald-300" : p.status === "rejected" ? "text-red-300" : "text-stone-300"}>{STATUS_TEXT[p.status]}</span>
           </div>
           <div className="mt-1 text-stone-300">{p.changes}</div>
-          <div className="num mt-1 text-stone-400">
-            Beim Fund: Zonen-Quote {pc(p.cand.zoneRate)} statt {pc(p.base.zoneRate)} ({p.cand.zones ?? p.cand.trades} Zonen) · Tage bestanden {passDays(p)}/{REQUIRED_DAYS}
+          {/* Vorher / Nachher auf den unbekannten Prüfdaten beim Fund (Nutzer 13.11.2026) */}
+          <div className="num mt-2 grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-0.5 text-[13px]">
+            <span className="text-stone-500" />
+            <span className="text-right text-stone-500">Vorher</span>
+            <span className="text-right text-stone-500">Nachher</span>
+            {[
+              ["Zonen-Quote", pc(p.base.zoneRate), pc(p.cand.zoneRate), (p.cand.zoneRate ?? 0) >= (p.base.zoneRate ?? 0)],
+              ["Zonen geprüft", String(p.base.zones ?? p.base.trades), String(p.cand.zones ?? p.cand.trades), true],
+              ["Profit-Faktor", p.base.profitFactor.toFixed(2).replace(".", ","), p.cand.profitFactor.toFixed(2).replace(".", ","), p.cand.profitFactor >= p.base.profitFactor],
+              ["Größter Rückgang", `${p.base.maxDrawdown.toFixed(0)} %`, `${p.cand.maxDrawdown.toFixed(0)} %`, p.cand.maxDrawdown >= p.base.maxDrawdown],
+              ["Signale pro Monat", p.base.perMonth.toFixed(2).replace(".", ","), p.cand.perMonth.toFixed(2).replace(".", ","), true],
+            ].map(([label, a, b, good]) => (
+              <div key={String(label)} className="contents">
+                <span className="text-stone-400">{label as string}</span>
+                <span className="text-right text-stone-300">{a as string}</span>
+                <span className={`text-right ${good ? "text-emerald-300" : "text-red-300"}`}>{b as string}</span>
+              </div>
+            ))}
           </div>
+          <div className="num mt-1 text-stone-400">Tage bestanden {passDays(p)}/{REQUIRED_DAYS}</div>
           {p.checks.map((c) => (
             <div key={c.day} className={`mt-0.5 ${c.pass ? "text-stone-400" : "text-red-300"}`}>
               {new Date(c.day).toLocaleDateString("de-DE")}: {c.note}
