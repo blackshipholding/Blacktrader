@@ -280,7 +280,7 @@ export async function runScan(maxAgeMs = 15 * 60e3) {
 }
 
 /** Marktlage aus den Tageskerzen von S&P 500 und NASDAQ 100 (nur Vergangenheit). */
-async function fetchMarketContext(): Promise<MarketContext> {
+export async function fetchMarketContext(): Promise<MarketContext> {
   const idx = (yahooSymbol: string) => ({ kind: "stock" as const, symbol: yahooSymbol, name: yahooSymbol, yahooSymbol });
   const [sp, nd] = await Promise.allSettled([api.candles(idx("^GSPC"), "1d", 15 * 60e3), api.candles(idx("^NDX"), "1d", 15 * 60e3)]);
   return marketContext(sp.status === "fulfilled" ? sp.value.candles : null, nd.status === "fulfilled" ? nd.value.candles : null);

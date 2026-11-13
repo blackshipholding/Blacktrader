@@ -5,6 +5,7 @@ import { checkWatchZones } from "./zoneAlert";
 import { startAutoBackup } from "./autoBackup";
 import { startShare } from "./dividendShare";
 import { startMissedStopCheck } from "./missedStop";
+import { startWorldScan } from "./worldScan";
 import { brokerStop } from "./brokerStop";
 import { exhaustionAt, rsi } from "../analysis/indicators";
 import { resumeTraining } from "./trainingSession";
@@ -150,6 +151,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   useEffect(() => startAutoBackup(), []);
   useEffect(() => startShare(), []);
   useEffect(() => startMissedStopCheck(), []);
+  useEffect(() => startWorldScan(), []);
 
   useEffect(() => {
     void refreshTrainerParams();

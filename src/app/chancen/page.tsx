@@ -4,6 +4,7 @@
 // Gelb (kein Einstieg) erscheint nur in der Watchlist.
 import { openPositions } from "@/lib/client/nachkauf";
 import { ChanceRecord } from "@/components/ChanceRecord";
+import { WorldRecord } from "@/components/WorldRecord";
 import { ACCOUNT, canAfford, freeCash, noMoney } from "@/lib/client/account";
 import { OVER_SHARE } from "@/lib/client/orderSlip";
 import { useEffect, useMemo, useState } from "react";
@@ -78,6 +79,7 @@ export default function ChancenPage() {
       </div>
 
       <ChanceRecord />
+      <WorldRecord />
 
       <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
         {KIND_FILTERS.map((f) => (
