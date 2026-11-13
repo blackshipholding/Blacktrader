@@ -289,6 +289,7 @@ export async function retestProposals(): Promise<void> {
   const end = () => {
     w.terminate();
     if (rworker === w) rworker = null;
+    releaseWakeLock();
     emit({ retest: { running: false, text: "" } });
   };
   w.onmessage = (e: MessageEvent) => {
@@ -304,6 +305,7 @@ export async function retestProposals(): Promise<void> {
   };
   w.onerror = end;
   emit({ retest: { running: true, text: "Vorschläge nachprüfen …" } });
+  void acquireWakeLock();
   w.postMessage({ type: "retest", day, paramSet: params, extra, champions, proposals });
 }
 
@@ -322,6 +324,11 @@ export async function adoptProposal(id: string): Promise<string> {
     return out.message || "Eingebaut.";
   }
   return `Konnte nicht eingebaut werden${out.message ? `: ${out.message}` : " (die Regeln – z. B. kleine Schritte – lassen es nicht zu)"}. Der Vorschlag bleibt bereit.`;
+}
+
+/** Nachprüfung abbrechen (fertig geprüfte Vorschläge bleiben gespeichert, der unfertige wird beim nächsten Start neu gerechnet) */
+export function stopRetest() {
+  rworker?.postMessage({ type: "stop" });
 }
 
 export const discardProposal = (id: string) => setStatus(id, "discarded", "von dir verworfen");

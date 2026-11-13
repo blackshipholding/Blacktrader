@@ -7,7 +7,7 @@ import { startShare } from "./dividendShare";
 import { startMissedStopCheck } from "./missedStop";
 import { brokerStop } from "./brokerStop";
 import { exhaustionAt, rsi } from "../analysis/indicators";
-import { resumeTraining, retestProposals } from "./trainingSession";
+import { resumeTraining } from "./trainingSession";
 import { syncPush } from "./push";
 import { effectiveWeights, learnedParams, refreshTrainerParams, trainerVersion } from "./trainerParams";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -154,9 +154,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshTrainerParams();
     resumeTraining(); // laufende Trainingssitzung nach dem Neuladen fortsetzen
-    // Trainer-Vorschläge: heute fällige Nachprüfung (ein anderer Tag zählt) – erst nach 2 Minuten, damit der Start flüssig bleibt
-    const t = setTimeout(() => void retestProposals(), 120e3);
-    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {

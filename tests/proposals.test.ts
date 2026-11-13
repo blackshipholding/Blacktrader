@@ -31,13 +31,14 @@ describe("Trainer-Vorschläge", () => {
     P.addProposal("stock:medium", { baseParams: DEFAULT_PARAMS, deployed: { ...DEFAULT_PARAMS, zoneAtrMult: 5 }, base: m(0.8), cand: m(0.86), changes: "y" });
     expect(P.getProposals().filter(P.isActive)).toHaveLength(1);
   });
-  it("3 verschiedene Tage bestanden → bereit; derselbe Tag zählt nur einmal", async () => {
+  it("5 verschiedene Tage bestanden → bereit; derselbe Tag zählt nur einmal", async () => {
     const { P, p } = await mk();
+    expect(P.REQUIRED_DAYS).toBe(5);
     P.recordCheck(p.id, { day: "2026-11-14", pass: true, note: "ok" });
     expect(P.recordCheck(p.id, { day: "2026-11-14", pass: true, note: "ok" })).toBeNull();
-    P.recordCheck(p.id, { day: "2026-11-15", pass: true, note: "ok" });
+    for (const d of ["15", "16", "17"]) P.recordCheck(p.id, { day: `2026-11-${d}`, pass: true, note: "ok" });
     expect(P.getProposals()[0].status).toBe("testing");
-    P.recordCheck(p.id, { day: "2026-11-16", pass: true, note: "ok" });
+    P.recordCheck(p.id, { day: "2026-11-18", pass: true, note: "ok" });
     expect(P.getProposals()[0].status).toBe("ready");
   });
   it("ein Durchfall an einem Tag verwirft den Vorschlag", async () => {

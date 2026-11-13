@@ -14,7 +14,7 @@ import { HORIZON_RANK } from "@/lib/analysis/bestEntry";
 import { allHistories } from "@/lib/client/entries";
 import { refreshTrainerParams, useTrainerCells } from "@/lib/client/trainerParams";
 import { initVersionsSeen, newVersions } from "@/lib/client/versionNotice";
-import { adoptProposal, discardProposal, loadReports, retestProposals, startTraining, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
+import { adoptProposal, discardProposal, loadReports, retestProposals, startTraining, stopRetest, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
 import { dueForRetest, isActive, passDays, REQUIRED_DAYS, useProposals, type Proposal } from "@/lib/client/proposals";
 import { primaryCount, primaryRate, TARGET_HIT_RATE } from "@/lib/trainer/engine";
 import { goalProgress, goalReached } from "@/lib/trainer/goal";
@@ -456,17 +456,20 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
   const [msg, setMsg] = useState<Record<string, string>>({});
   const shown = [...list].filter((p) => isActive(p) || p.status === "rejected" || p.status === "adopted").slice(-8).reverse();
   const due = dueForRetest().length;
-  // Beim Öffnen des Trainers: fällige Nachprüfungen starten (läuft im Hintergrund)
-  useEffect(() => {
-    if (due > 0) void retestProposals();
-  }, [due]);
   if (!shown.length && !retest.running) return null;
   const pc = (x?: number) => (x == null ? "–" : `${(x * 100).toFixed(1).replace(".", ",")} %`);
   return (
     <section className="card space-y-3 p-4">
       <h2 className="text-[17px] text-gold-light">Bessere Varianten</h2>
       <p className="text-[14px] text-stone-400">Der Trainer baut nichts allein ein. Eine bessere Einstellung wird an {REQUIRED_DAYS} verschiedenen Tagen nachgeprüft (jedes Mal anderer Ausschnitt der Werte). Erst wenn sie alle besteht, entscheidest du.</p>
-      {retest.running && <p className="text-[14px] text-amber-200">{retest.text || "Prüfung läuft …"}</p>}
+      {retest.running && (
+        <>
+          <p className="text-[14px] text-amber-200">{retest.text || "Prüfung läuft …"}</p>
+          <button className="btn w-full" onClick={stopRetest}>
+            Prüfung abbrechen
+          </button>
+        </>
+      )}
       {shown.map((p) => (
         <div key={p.id} className={`rounded-xl border p-3 text-[14px] ${p.status === "ready" ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
           <div className="flex items-start justify-between gap-2">
@@ -504,7 +507,7 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
       ))}
       {due > 0 && !retest.running && (
         <button className="btn w-full" onClick={() => void retestProposals()}>
-          Jetzt nachprüfen ({due})
+          Heutige Nachprüfung starten ({due})
         </button>
       )}
     </section>

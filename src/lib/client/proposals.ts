@@ -10,7 +10,7 @@ import type { CellKey } from "../trainer/universe";
 import { keyOf } from "../trainer/walkforward";
 
 /** So viele verschiedene Tage muss ein Vorschlag NACH dem Fund bestehen */
-export const REQUIRED_DAYS = 3;
+export const REQUIRED_DAYS = 5;
 const KEY = "bt-trainer-proposals";
 
 export type ProposalStatus = "testing" | "ready" | "rejected" | "adopted" | "discarded";
