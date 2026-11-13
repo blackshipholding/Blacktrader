@@ -19,7 +19,10 @@ const LOG_KEY = "bt-world-log-v1";
 const PROG_KEY = "bt-world-scan-v1";
 const OFF_KEY = "bt-world-scan-off";
 const BATCH = 60;
-const PARALLEL = 5;
+const PARALLEL = 3;
+/** Schutz für Yahoo: zwischen zwei Abfragen kurz warten; fällt mehr als die Hälfte einer Etappe aus (z. B. „zu viele Anfragen“), wird für heute abgebrochen */
+const PAUSE_MS = 250;
+const MAX_FAIL_SHARE = 0.5;
 
 export type WorldEntry = ChanceLogEntry & { region: WorldRegion };
 export interface WorldProgress {
@@ -153,14 +156,22 @@ export async function runWorldScan(force = false): Promise<void> {
       const batch = all.slice(prog.done, prog.done + BATCH);
       const log = [...getWorldLog()];
       const add: WorldEntry[] = [];
+      let failed = 0;
       await pool(batch, PARALLEL, async (a) => {
         try {
-          await scanOne(a, ctx, log, add);
+          if (!(await scanOne(a, ctx, log, add))) failed++;
         } catch {
-          /* dieser Wert heute nicht */
+          failed++;
         }
+        await new Promise((r) => setTimeout(r, PAUSE_MS));
       });
       saveLog([...log, ...add]);
+      if (failed > batch.length * MAX_FAIL_SHARE) {
+        // Yahoo bremst oder das Netz fehlt: nicht weiter hämmern, beim nächsten Start an derselben Stelle weitermachen
+        busy = { running: false, text: "" };
+        emit();
+        return;
+      }
       prog = { ...prog, done: prog.done + batch.length };
       wr(PROG_KEY, prog);
       busy = { running: true, text: `Welt-Suche ${prog.done}/${all.length}` };
