@@ -65,12 +65,8 @@ const saveLog = (l: WorldEntry[]) => {
 export const useWorldLog = (): WorldEntry[] =>
   useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), getWorldLog, () => []);
 export const useWorldBusy = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => busy, () => busy);
-/** Standard AUS (Nutzer 13.11.2026: nicht gesperrt werden) – erst auf Wunsch einschalten */
-export const worldScanOn = () => rd<boolean>(ON_KEY, false) === true;
-export const setWorldScanOn = (on: boolean) => {
-  wr(ON_KEY, on);
-  emit();
-};
+/** Läuft automatisch wie die normale Suche (Nutzer 13.11.2026: kein Schalter); Yahoo wird durch die Tagesgrenze geschont */
+export const worldScanOn = () => rd<boolean>(ON_KEY, true) === true;
 const today = () => new Date().toISOString().slice(0, 10);
 
 export interface RegionStats {
