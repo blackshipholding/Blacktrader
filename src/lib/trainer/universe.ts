@@ -78,6 +78,25 @@ export const STOCKS_ASIA_WIDE = [
   "D05.SI", "O39.SI", "U11.SI", "Z74.SI", "C6L.SI", "C38U.SI", "A17U.SI", "S68.SI", "BN4.SI", "F34.SI",
 ];
 
+/**
+ * Alle Rohstoffe, die Yahoo als Terminkurs liefert (Nutzer 13.11.2026): Metalle, Energie, Getreide, Ölsaaten, Softs, Vieh, Holz – plus
+ * ein paar physisch gedeckte Rohstoff-ETFs. Gilt nur für das Lernen. Unbekannte Kürzel werden übersprungen.
+ */
+export const COMMODITIES_WIDE = [
+  // Metalle
+  "GC=F", "SI=F", "PL=F", "PA=F", "HG=F", "ALI=F", "MGC=F", "SIL=F",
+  // Energie
+  "CL=F", "BZ=F", "NG=F", "RB=F", "HO=F", "TTF=F", "QM=F", "QG=F",
+  // Getreide und Ölsaaten
+  "ZC=F", "ZW=F", "KE=F", "ZS=F", "ZM=F", "ZL=F", "ZO=F", "ZR=F", "MWE=F",
+  // Softs
+  "KC=F", "SB=F", "CC=F", "CT=F", "OJ=F",
+  // Vieh, Milch, Holz
+  "LE=F", "GF=F", "HE=F", "DC=F", "LBS=F",
+  // Rohstoff-ETFs (physisch bzw. Terminkontrakte)
+  "GLD", "SLV", "PPLT", "PALL", "CPER", "USO", "UNG", "WEAT", "CORN", "SOYB", "DBA", "DBC", "DBB", "DBE", "DBO", "BNO", "UGA", "JO", "NIB", "SGG", "BAL",
+];
+
 /** Kerzengröße und Zeitraum je Horizont (Yahoo liefert Stundenkerzen nur für ca. 2 Jahre). */
 export const HORIZON_SETUP: Record<Horizon, { interval: Interval; days: number; step: number }> = {
   short: { interval: "1h", days: 729, step: 2 },
@@ -111,6 +130,7 @@ export function sessionUniverse(cell: CellKey, extra: { symbol: string; kind: As
   // Breite Lernwerte (Mittel-/Langfrist): viele Aktien USA + Europa, viele Coins – mehr Zonen für die Mindestzahl (B2)
   if (kind === "stock" && horizon !== "short") add.push(...STOCKS_US_WIDE, ...STOCKS_EU_WIDE, ...STOCKS_ASIA_WIDE);
   if (kind === "crypto" && horizon !== "short") add.push(...CRYPTO_WIDE);
+  if (kind === "commodity") add.push(...COMMODITIES_WIDE);
   if (kind === "stock" && horizon === "short") add.push(...STOCKS.slice(25));
   for (const e of extra) if (e.kind === kind) add.push(e.yahooSymbol ?? (kind === "crypto" ? `${e.symbol}-USD` : e.symbol));
   const out = [...base];
