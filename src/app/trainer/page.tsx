@@ -461,7 +461,6 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
   return (
     <section className="card space-y-3 p-4">
       <h2 className="text-[17px] text-gold-light">Bessere Varianten</h2>
-      <p className="text-[14px] text-stone-400">Der Trainer baut nichts allein ein. Eine bessere Einstellung wird an {REQUIRED_DAYS} verschiedenen Tagen nachgeprüft (jedes Mal ein anderer Ausschnitt von der Hälfte der Werte). Erst wenn sie alle besteht, entscheidest du.</p>
       {retest.running && (
         <>
           <p className="text-[14px] text-amber-200">{retest.text || "Prüfung läuft …"}</p>
@@ -497,12 +496,6 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
             ))}
           </div>
           <div className="num mt-1 text-stone-400">Tage bestanden {passDays(p)}/{REQUIRED_DAYS}</div>
-          {p.checks.map((c) => (
-            <div key={c.day} className={`mt-0.5 ${c.pass ? "text-stone-400" : "text-red-300"}`}>
-              {new Date(c.day).toLocaleDateString("de-DE")}: {c.note}
-            </div>
-          ))}
-          {p.note && p.status !== "ready" && <div className="mt-0.5 text-stone-500">{p.note}</div>}
           {p.status === "ready" && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button
