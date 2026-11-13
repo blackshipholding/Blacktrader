@@ -8,6 +8,15 @@ const PAIRS: [string, string][] = [
   ["USD", "EURUSD=X"],
   ["GBP", "EURGBP=X"],
   ["CHF", "EURCHF=X"],
+  // Weitere Handelswährungen (Prüfung 13.11.2026): ohne Kurs wurden solche Werte 1:1 wie Euro gerechnet
+  ["JPY", "EURJPY=X"],
+  ["HKD", "EURHKD=X"],
+  ["CAD", "EURCAD=X"],
+  ["AUD", "EURAUD=X"],
+  ["SEK", "EURSEK=X"],
+  ["NOK", "EURNOK=X"],
+  ["DKK", "EURDKK=X"],
+  ["PLN", "EURPLN=X"],
 ];
 
 // Gespeicherten Stand sofort verwenden
@@ -21,16 +30,20 @@ if (typeof window !== "undefined") {
 }
 
 let last = 0;
+let lastSlow = 0;
 let running: Promise<void> | null = null;
 
 /** Aktuelle Kurse laden (höchstens jede Minute, Live-Kurs). Kurs = Wert von 1 Einheit in Euro. */
 export function refreshFx(force = false): Promise<void> {
   if (!force && Date.now() - last < 55e3) return running ?? Promise.resolve();
   last = Date.now();
+  // Dollar jede Minute, die übrigen Währungen alle 30 Minuten (weniger Abrufe)
+  const slow = force || Date.now() - lastSlow > 30 * 60e3;
+  if (slow) lastSlow = Date.now();
   running = (async () => {
     const out: Record<string, number> = {};
     await Promise.all(
-      PAIRS.map(async ([cur, sym]) => {
+      PAIRS.filter(([cur]) => slow || cur === "USD").map(async ([cur, sym]) => {
         try {
           let close: number | undefined;
           try {
@@ -47,7 +60,7 @@ export function refreshFx(force = false): Promise<void> {
     if (Object.keys(out).length) {
       setFxRates({ ...out, GBp: out.GBP ? out.GBP / 100 : undefined });
       try {
-        localStorage.setItem(KEY, JSON.stringify(out));
+        localStorage.setItem(KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, number>), ...out }));
       } catch {
         /* egal */
       }

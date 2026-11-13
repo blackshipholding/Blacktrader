@@ -480,27 +480,3 @@ export function LongTermSignalCard({ a, zone, currency }: { a: AnalysisResult; z
     </div>
   );
 }
-
-export function LongTermCard({ zone, currency, onTake, position }: { zone: LongTermZone | null | undefined; currency?: string; onTake?: () => void; position?: string | null }) {
-  if (!zone || zone.status === "invalidiert") return null;
-  const fmt = (n: number) => money(n, currency);
-  return (
-    <div className="panel core-bg space-y-2 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="panel-title">
-          Langfristiger Einstieg <span className="core-tag ml-1 align-middle">blau</span>
-        </span>
-        <span className="chip border-sky-500/40 text-sky-300">{zone.status === "in-zone" ? "Bereich erreicht" : "Zulaufend"}</span>
-      </div>
-      <p className="text-[15px] text-stone-200">{longTermText(zone, fmt)}</p>
-      <p className="num text-[14px] text-sky-200">Teile: {zone.tranches.map(fmt).join(" · ")}</p>
-      {position && <p className="text-[14px] text-sky-100">{position}</p>}
-      <p className="text-[13px] text-stone-500">Kein fester Stop. Teilausstieg oder Stop gibt es nur, wenn sich die Wellenzählung ändert oder das Alternativszenario wahrscheinlicher wird – dann kommt eine Nachricht.</p>
-      {onTake && (
-        <button className="btn-primary w-full" onClick={onTake}>
-          Langfristig übernehmen
-        </button>
-      )}
-    </div>
-  );
-}

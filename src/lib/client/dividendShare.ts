@@ -4,7 +4,7 @@
 // Kopplungs-Code ab. Sonst wird nichts gesendet; an der Analyse und am Handel ändert das nichts.
 import { netOfTax } from "../analysis/dividends";
 import { getData, subscribeData } from "../store/store";
-import { creditsOfHolding, loadForPositions, subscribeBook } from "./dividendBook";
+import { creditsOfHolding, loadDividends, loadForPositions, subscribeBook } from "./dividendBook";
 
 export interface ShareRow { name: string; symbol: string; date: string; /** Stückzahl, für die die Dividende gilt */ shares: number; gross: number; net: number; source: "hand" | "auto" }
 
@@ -46,6 +46,7 @@ export function enableShare(): string {
   ls.set(CODE, c);
   ls.set(ON, "1");
   ls.del(SIG);
+  loadForPositions([], getData().holdings);
   void syncNow(true);
   return c;
 }
@@ -74,6 +75,14 @@ export async function syncNow(force = false): Promise<ShareResult> {
   const code = shareCode();
   if (!shareOn() || !code) return { ok: false, count: 0, note: "Senden ist ausgeschaltet." };
   if (busy) return { ok: false, count: 0, note: "Es läuft schon ein Senden." };
+  // Dividenden-Daten der Buy-&-Hold-Aktien sicher geladen haben – sonst fehlen die automatischen Dividenden in der Liste
+  if (force)
+    await Promise.all(
+      getData().holdings.filter((h) => h.kind === "stock").map((h) => {
+        const first = h.txs.map((x) => Date.parse(`${x.date}T00:00:00Z`)).filter(Number.isFinite).sort((a, b) => a - b)[0];
+        return first ? loadDividends(h, first).catch(() => undefined) : undefined;
+      }),
+    );
   const rows = buildShareRows();
   const sig = JSON.stringify(rows);
   if (!force && sig === ls.get(SIG)) return { ok: true, count: rows.length };
