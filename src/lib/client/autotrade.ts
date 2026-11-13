@@ -5,7 +5,9 @@ import type { AnalysisResult } from "../analysis/analyze";
 import { plainSetup } from "../analysis/persona";
 import { tradeReturnPct } from "../analysis/stats";
 import { actions, getData } from "../store/store";
-import { canAfford, freeCash, noMoney, noTwice } from "./account";
+import { canAfford, freeCash, fxReady, noFx, noMoney, noTwice } from "./account";
+import { tradeCurrency } from "./eur";
+import { refreshFx } from "./fx";
 import { openPositions } from "./nachkauf";
 import type { ResolvedAsset } from "../types";
 
@@ -21,6 +23,12 @@ export function hasOpenTrade(symbol: string, horizon: AnalysisResult["horizon"])
 export function openPaperTrade(asset: Asset, res: AnalysisResult): boolean {
   const plan = res.plan;
   if (!plan || res.decision.level === "neutral" || hasOpenTrade(asset.symbol, res.horizon)) return false;
+  // Ohne Wechselkurs nichts übernehmen (Stückzahl/Betrag wären falsch)
+  if (!fxReady(tradeCurrency({ symbol: asset.symbol, kind: asset.kind, currency: asset.currency }))) {
+    void refreshFx(true);
+    noFx();
+    return false;
+  }
   // Eine Position je Wert (wie im Test); nachkaufen geht nur bei blauen Einstiegen
   if (openPositions(asset.symbol).length > 0) {
     noTwice();

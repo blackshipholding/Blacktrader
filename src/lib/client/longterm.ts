@@ -10,7 +10,8 @@ import { assessLongTerm, blendedReturn, protectDue, trailStop, type LongTermActi
 import { getStopParams } from "./stopParams";
 import { money } from "../analysis/persona";
 import { actions, getData, type LongTermProposal, type Trade } from "../store/store";
-import { ACCOUNT, ADD, canAfford, freeCash, noMoney, noTwice } from "./account";
+import { ACCOUNT, ADD, canAfford, freeCash, fxReady, noFx, noMoney, noTwice } from "./account";
+import { refreshFx } from "./fx";
 import { nachkaufState, openPositions } from "./nachkauf";
 import type { Candle, Horizon, Interval, ResolvedAsset } from "../types";
 
@@ -42,6 +43,12 @@ export const openLongTerm = (symbol: string) => getData().trades.find((t) => t.s
  */
 export function openLongTermTrade(asset: Asset, z: LongTermZone, horizon: Horizon, interval: Interval, price: number, opts: { nachkauf?: boolean } = {}): boolean {
   const nk = opts.nachkauf === true;
+  // Ohne Wechselkurs nichts übernehmen (Stückzahl/Betrag wären falsch)
+  if (!fxReady(tradeCurrency({ symbol: asset.symbol, kind: asset.kind, currency: asset.currency }))) {
+    void refreshFx(true);
+    noFx();
+    return false;
+  }
   if (nk ? !nachkaufState(asset.symbol, z).allowed : openPositions(asset.symbol).length > 0) {
     if (!nk) noTwice();
     return false;

@@ -1,3 +1,4 @@
+import { eurPerUnit } from "../fx";
 // Blacktrader-Konto im Depot – Regeln „Shipmaster 0.1“ (Nutzer-Entscheid 11.11.2026, fest – Regelwerk A, Blacktrader ändert
 // sie nie selbst). Härtetest 100 × 1 Mio. Kunden: ab 10.000 € 13,9 % p. a., 1,9 % Kunden mit Verlust.
 //  • Kontostand = freies Geld + offene Positionen zum Kaufpreis (nach Gebühren und KESt; Gewinne zählen erst nach dem Verkauf)
@@ -355,4 +356,12 @@ export function simulateAccount(trades: SimTrade[], start: number = ACCOUNT.star
 /** Hinweis: Wert liegt schon im Depot – nachkaufen nur bei blauen Einstiegen */
 export function noTwice() {
   if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(`Diesen Wert hast du schon im Depot. Nachkaufen geht nur bei einem weiteren blauen (langfristigen) Einstieg – höchstens ${ADD.max} × ${ADD.stake.toLocaleString("de-DE")} €.`);
+}
+
+/** Wechselkurs für diese Währung geladen? (Euro braucht keinen) – ohne Kurs würden Stückzahl und Betrag falsch gerechnet */
+export const fxReady = (currency?: string | null): boolean => eurPerUnit(currency) != null;
+
+/** Hinweis, wenn der Wechselkurs noch fehlt – es wird nichts übernommen (Nutzer 13.11.2026) */
+export function noFx() {
+  if (typeof window !== "undefined" && typeof window.alert === "function") window.alert("Der Wechselkurs ist noch nicht geladen. Bitte kurz warten und noch einmal tippen – sonst würden Stückzahl und Betrag falsch gerechnet.");
 }
