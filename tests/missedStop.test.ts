@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fxLookup, intervalForGap, stopTouched } from "../src/lib/analysis/missedStop";
+import { fxLookup, intervalForGap, levelTouched, stopTouched } from "../src/lib/analysis/missedStop";
 import type { Candle } from "../src/lib/types";
 
 const c = (time: number, low: number, high = low + 1): Candle => ({ time, open: low + 0.5, high, low, close: low + 0.5, volume: 1 });
@@ -39,5 +39,11 @@ describe("Stop während Abwesenheit", () => {
     expect(intervalForGap(40 * 86400e3, false)).toBe("1h");
     expect(intervalForGap(400 * 86400e3, false)).toBe("1d");
     expect(intervalForGap(12 * 86400e3, true)).toBe("1h");
+  });
+  it("Ziel (Hoch) und Kauf-Limit (Tief) werden wie der Stop geprüft", () => {
+    const candles = [c(0, 100, 104), c(900, 98, 112), c(1800, 101, 103)];
+    expect(levelTouched(candles, 110, () => 1, 0, 900, "above")?.touched).toBe(true);
+    expect(levelTouched(candles, 115, () => 1, 0, 900, "above")?.touched).toBe(false);
+    expect(levelTouched(candles, 99, () => 1, 0, 900, "below")?.at).toBe(900);
   });
 });

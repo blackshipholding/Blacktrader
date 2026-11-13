@@ -119,8 +119,8 @@ export interface Trade {
   brokerStopEur?: number;
   /** Zuletzt gemeldeter Vorschlag für den flatex-Stop (nur einmal melden) */
   brokerStopNotified?: number;
-  /** Stop wurde laut Kerzen berührt, während die App geschlossen war – nur Hinweis, nichts gebucht (Nutzer 13.11.2026) */
-  missedStop?: { at: number; near: boolean; stopEur: number; lowEur: number };
+  /** Laut Kerzen berührt, während die App geschlossen war (Stop, Kauf-Limit, Ziel) – nur Hinweise, nichts gebucht (Nutzer 13.11.2026) */
+  missed?: { kind: "stop" | "entry" | "target"; at: number; near: boolean; levelEur: number; extremeEur: number; part?: number }[];
   /** Hochstufung GRÜN → BLAU (Blacktrader): Zeitpunkt und Grund */
   promotedAt?: number;
   promoteReason?: string;

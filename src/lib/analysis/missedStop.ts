@@ -35,29 +35,34 @@ export function fxLookup(fxCandles: Candle[], eurPerUnitFromClose: (close: numbe
 }
 
 /**
- * Prüft die Kerzen ab `sinceSec`. `stopEur` = Stop in Euro, `eurPer(t)` = Euro je Einheit der Kerzenwährung zur Zeit t
- * (bei Euro-Werten immer 1). `dir` 1 = Kauf (Tief zählt), −1 = Short (Hoch zählt).
+ * Prüft die Kerzen ab `sinceSec` gegen eine Marke in Euro. `eurPer(t)` = Euro je Einheit der Kerzenwährung zur Zeit t
+ * (bei Euro-Werten immer 1). `side` "below": Tief ≤ Marke (Stop eines Kaufs, Kauf-Limit); "above": Hoch ≥ Marke (Ziel, Short-Stop).
  */
-export function stopTouched(candles: Candle[], stopEur: number, eurPer: (timeSec: number) => number | null, sinceSec: number, intervalSec: number, dir: 1 | -1 = 1, nearPct = NEAR_PCT): StopTouch | null {
-  if (!(stopEur > 0)) return null;
-  let extreme = dir === 1 ? Infinity : -Infinity;
+export function levelTouched(candles: Candle[], levelEur: number, eurPer: (timeSec: number) => number | null, sinceSec: number, intervalSec: number, side: "below" | "above" = "below", nearPct = NEAR_PCT): StopTouch | null {
+  if (!(levelEur > 0)) return null;
+  const below = side === "below";
+  let extreme = below ? Infinity : -Infinity;
   let at: number | undefined;
   let any = false;
   for (const k of candles) {
     if (k.time + intervalSec < sinceSec) continue; // Kerze endete vor dem letzten Besuch
     const fx = eurPer(k.time);
     if (fx == null || !(fx > 0)) continue;
-    const v = (dir === 1 ? k.low : k.high) * fx;
+    const v = (below ? k.low : k.high) * fx;
     if (!Number.isFinite(v)) continue;
     any = true;
-    if (dir === 1 ? v < extreme : v > extreme) extreme = v;
-    if (at == null && (dir === 1 ? v <= stopEur : v >= stopEur)) at = k.time;
+    if (below ? v < extreme : v > extreme) extreme = v;
+    if (at == null && (below ? v <= levelEur : v >= levelEur)) at = k.time;
   }
   if (!any) return null;
   const touched = at != null;
-  const near = !touched && (dir === 1 ? extreme <= stopEur * (1 + nearPct) : extreme >= stopEur * (1 - nearPct));
+  const near = !touched && (below ? extreme <= levelEur * (1 + nearPct) : extreme >= levelEur * (1 - nearPct));
   return { touched, near, at, extremeEur: extreme };
 }
+
+/** Stop: bei Kauf zählt das Tief (dir 1), bei Short das Hoch (dir −1) */
+export const stopTouched = (candles: Candle[], stopEur: number, eurPer: (timeSec: number) => number | null, sinceSec: number, intervalSec: number, dir: 1 | -1 = 1, nearPct = NEAR_PCT) =>
+  levelTouched(candles, stopEur, eurPer, sinceSec, intervalSec, dir === 1 ? "below" : "above", nearPct);
 
 /** Kerzengröße nach Dauer der Abwesenheit (so weit reichen die Quellen: Yahoo 15 Min ~1 Monat, 1 Std ~1 Jahr; Binance 15 Min ~10 Tage, 1 Std ~41 Tage) */
 export function intervalForGap(gapMs: number, crypto: boolean): "15m" | "1h" | "1d" {
