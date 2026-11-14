@@ -16,7 +16,7 @@ UA = {"User-Agent": "Mozilla/5.0 (privates Kursdaten-Skript)"}
 SP = ["Gruppe", "Ticker", "Name", "erster Tag", "letzter Tag", "Zeilen", "Waehrung", "Fehlermeldung"]
 
 GRUPPEN = {
-    "Nasdaq100":    ("wiki", "https://en.wikipedia.org/wiki/Nasdaq-100", 90, 115),
+    "Nasdaq100":    ("wiki", "https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies", 90, 115),
     "Europa":       ("csv", "Aktien_Europa"),
     "AsienPazifik": ("csv", "Aktien_Asien_Pazifik"),
     "SP500":        ("wiki", "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", 480, 520),
