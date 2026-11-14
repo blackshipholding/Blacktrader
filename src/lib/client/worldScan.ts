@@ -129,20 +129,34 @@ async function scanOne(asset: ResolvedAsset, ctx: Awaited<ReturnType<typeof fetc
   }
   const best = pickBestEntry({ symbol: a.symbol, kind: a.kind, views: { medium: medium ?? null, long: long ?? null }, lt: ltOk, ctx, done: new Set() });
   if (best.color === "gelb" || best.color === "rot" || best.zoneTop == null || best.zoneBottom == null) return true;
-  const entry = { asset: a, horizons, longterm: ltOk, ltHorizon: "long", ltCandles: ltOk ? weekly.slice(-150) : undefined, best, history: { past: [] }, daily } as unknown as ScanEntry;
-  if (!isTopChance(entry) || potential(entry) == null) return true;
-  // Finanz-Prüfung wie in der normalen Suche, aber nur für die wenigen Werte, die tatsächlich eine Chance sind (1 Zusatz-Abruf je Chance):
-  // schwache Firmen (hohe Schulden und Geld verbrennen) kommen nicht in die Messung; ohne verfügbare Zahlen bleibt der Wert, wird aber vermerkt
+  const mk = (b: typeof best, h: ScanEntry["horizons"]) => ({ asset: a, horizons: h, longterm: ltOk, ltHorizon: "long", ltCandles: ltOk ? weekly.slice(-150) : undefined, best: b, history: { past: [] }, daily }) as unknown as ScanEntry;
+  if (!isTopChance(mk(best, horizons)) || potential(mk(best, horizons)) == null) return true;
+  // Wie in der normalen Suche (2. Schritt): aussichtsreiche Werte bekommen die VOLLE Analyse mit Firmenzahlen und Nachrichten, danach Finanz-Prüfung.
+  // Das passiert nur für die wenigen Werte, die schon technisch eine Chance sind (2 Zusatz-Abrufe je Chance).
+  const [fr, nr] = await Promise.allSettled([Promise.resolve().then(() => api.fundamentals(a)), Promise.resolve().then(() => api.news(a))]);
+  const fundamentals = fr.status === "fulfilled" ? fr.value.fundamentals : null;
+  const news = nr.status === "fulfilled" ? nr.value.news : [];
+  const full = (candles: Candle[], horizon: Horizon, interval: "1d" | "1w") =>
+    analyze({ symbol: a.symbol, name: a.name, candles, horizon, interval, weights: effectiveWeights(settings, a.kind, horizon), kind: a.kind, currency, params: learnedParams(a.kind, horizon), fundamentals, news });
+  const fullH: ScanEntry["horizons"] = { ...horizons };
+  if (medium && medium.decision.level !== "neutral") {
+    const r = full(daily, "medium", "1d");
+    if (r) fullH.medium = { res: r, candles: daily.slice(-150) };
+  }
+  if (long && long.decision.level !== "neutral") {
+    const r = full(weekly, "long", "1w");
+    if (r) fullH.long = { res: r, candles: weekly.slice(-150) };
+  }
+  const best2 = pickBestEntry({ symbol: a.symbol, kind: a.kind, views: { medium: fullH.medium?.res ?? null, long: fullH.long?.res ?? null }, lt: ltOk, ctx, done: new Set() });
+  if (best2.color === "gelb" || best2.color === "rot" || best2.zoneTop == null || best2.zoneBottom == null) return true;
   let fin: WorldEntry["fin"];
   if (a.kind === "stock") {
-    try {
-      const f = (await api.fundamentals(a)).fundamentals;
-      if (financeCheck(f).weak) return true;
-      fin = f ? "geprüft" : "ohne Daten";
-    } catch {
-      fin = "ohne Daten";
-    }
+    if (financeCheck(fundamentals).weak) return true; // schwache Firmen (hohe Schulden und Geld verbrennen) nicht – wie in den Chancen
+    fin = fundamentals ? "geprüft" : "ohne Daten";
   }
+  const entry = mk(best2, fullH);
+  if (!isTopChance(entry) || potential(entry) == null) return true;
+  Object.assign(best, best2);
   const blue = best.color === "blau";
   const stop = blue ? best.invalidation : best.stop;
   const target = best.targets?.[0];

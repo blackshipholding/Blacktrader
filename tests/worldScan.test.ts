@@ -17,6 +17,8 @@ function walk(seed: number, n: number, step: number) {
 
 vi.mock("../src/lib/client/api", () => ({
   api: {
+    fundamentals: async () => ({ fundamentals: null }),
+    news: async () => ({ news: [] }),
     candles: async (a: { symbol: string }, iv: string) => {
       const seed = [...a.symbol].reduce((s, c) => s + c.charCodeAt(0), 7);
       return { candles: walk(seed, iv === "1w" ? 400 : 900, iv === "1w" ? 604800 : 86400), currency: "USD" };
