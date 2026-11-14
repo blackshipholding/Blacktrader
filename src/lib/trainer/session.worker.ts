@@ -179,7 +179,7 @@ self.onmessage = async (e: MessageEvent) => {
             const i = c.findIndex((x) => x.time >= start);
             if (i < 0) continue;
             const slice = c.slice(Math.max(0, i - 150));
-            for (const z of backtestSeries({ name: spec.symbol, kind: spec.kind, horizon: spec.horizon, interval: spec.interval, candles: slice }, p, { step: spec.step }).zones) {
+            for (const z of backtestSeries({ name: spec.symbol, kind: spec.kind, horizon: spec.horizon, interval: spec.interval, candles: slice }, p, { step: spec.step, rules: true }).zones) {
               if (z.t < start || z.dir === -1) continue; // nur Kauf-Zonen
               n++;
               ok += z.ok;

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { LEARN_RULES } from "../src/lib/trainer/engine";
 import { LOCKED } from "../src/lib/analysis/locked-config";
 import { memoryCells, runJob, startFinalJob, startTrainJob, type Universe } from "../src/lib/trainer/job";
 import { evaluateSignal, recordFromAnalysis, type SignalRecord } from "../src/lib/trainer/signals";
@@ -30,6 +31,14 @@ const strip = (r: { s: ReturnType<typeof initialState>; cells: ReturnType<typeof
   JSON.stringify({ log: r.s.log.map((l) => ({ ...l, date: 0 })), rec: { ...r.cells.records.get("stock:medium"), updatedAt: 0, log: 0 } });
 
 describe("Trainer-Job", () => {
+  // Die zufälligen Testkurse haben zu kleine Ziele für die Chancen-Regeln (15 % Chance, Potenzial 26) – hier ohne sie, damit überhaupt gehandelt wird
+  beforeAll(() => {
+    LEARN_RULES.on = false;
+  });
+  afterAll(() => {
+    LEARN_RULES.on = true;
+  });
+
   it("benutzt die gesperrten letzten 12 Monate nie zum Lernen", async () => {
     const a = await runToEnd(async (x) => BASE[x.symbol]);
     const b = await runToEnd(async (x) => withOtherHoldout(BASE[x.symbol]));

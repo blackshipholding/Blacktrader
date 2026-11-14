@@ -286,7 +286,7 @@ async function evaluatePending(st: WFState, ctx: WFContext, now: () => number): 
       didOne = true;
       ctx.onPhase?.("backtest", `${st.specs[s].symbol} · ${st.pool[k].change}`);
       const spec = st.specs[s];
-      const r = backtestSeries({ name: spec.symbol, kind: spec.kind, horizon: spec.horizon, interval: spec.interval, candles: pre }, st.pool[k].params, { step: spec.step, warmup: WARMUP });
+      const r = backtestSeries({ name: spec.symbol, kind: spec.kind, horizon: spec.horizon, interval: spec.interval, candles: pre }, st.pool[k].params, { step: spec.step, warmup: WARMUP, rules: true });
       const rd = (x: number) => Math.round(x * 1e6) / 1e6;
       st.pool[k].runs[s] = {
         r: r.trades.map((t) => Math.round(t.returnPct * 100) / 100),

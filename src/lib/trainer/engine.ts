@@ -6,6 +6,7 @@ import { DEFAULT_PARAMS, PARAM_BOUNDS, validateParams, type LearnableParams } fr
 import { runZoneBacktest } from "../analysis/zoneBacktest";
 import { zoneOutcome } from "../analysis/zoneOutcome";
 import { LOCKED } from "../analysis/locked-config";
+import { greenRedTrade } from "../analysis/tradeRules";
 import type { ZoneSetup } from "../analysis/zones";
 import type { AssetKind, Candle, Horizon, Interval } from "../types";
 
@@ -98,7 +99,18 @@ export interface ZoneRecord {
   bottom: number;
 }
 
-export function backtestSeries(s: Series, params: LearnableParams, opts: { warmup?: number; step?: number } = {}) {
+/**
+ * Option A (Nutzer 14.11.2026): Beim LERNEN zählen nur Zonen und Trades, die auch die Chancen-Regeln erfüllen (Chance bis zum Ziel
+ * mindestens 15 %, Potenzial ≥ MIN_POTENTIAL, keine Shorts) – damit der Trainer auf genau der Menge lernt, die die App zeigt.
+ * Ohne Sektor-Regel (keine NASDAQ-Reihe im Training) und ohne Firmenzahlen. Nur mit `rules: true`; Turnier/Härtetest rufen ohne.
+ */
+/** Schalter (nur für Tests): aus = Lernen zählt wieder alle Zonen */
+export const LEARN_RULES = { on: true };
+const LEARN_CTX = { symbol: "", techWeakAt: () => false, regimeAt: () => null };
+export const passesChanceRules = (direction: string, entry: number, stop: number | undefined, target: number | undefined): boolean => greenRedTrade({ direction, entryTime: 0, entry, stop, target }, LEARN_CTX) != null;
+
+export function backtestSeries(s: Series, params: LearnableParams, opts: { warmup?: number; step?: number; rules?: boolean } = {}) {
+  const rules = !!opts.rules && LEARN_RULES.on;
   const zones: ZoneRecord[] = [];
   const seen = new Set<string>();
   const r = runZoneBacktest(s.candles, {
@@ -110,12 +122,13 @@ export function backtestSeries(s: Series, params: LearnableParams, opts: { warmu
       const key = `${setup.zoneStart}:${setup.zoneEnd}`;
       if (seen.has(key)) return;
       seen.add(key);
+      if (rules && !passesChanceRules(setup.direction, setup.entry, setup.stop, setup.targets?.[0])) return;
       const dir = setup.direction === "long" ? 1 : -1;
       const o = zoneOutcome(s.candles, index, { top: setup.zoneStart, bottom: setup.zoneEnd, dir, cancel: setup.cancelAbove, maxWait: LOCKED.trade.maxWaitBars });
       if (o) zones.push({ t: time, at: o.at, ok: o.result === "erfolg" ? 1 : 0, dir, top: setup.zoneStart, bottom: setup.zoneEnd });
     },
   });
-  return { ...r, zones };
+  return rules ? { ...r, trades: r.trades.filter((t) => passesChanceRules(t.direction, t.entry, t.stop, t.target)), zones } : { ...r, zones };
 }
 
 const monthsOf = (c: Candle[]) => (c.length > 1 ? (c[c.length - 1].time - c[0].time) / (30.44 * 86400) : 0);

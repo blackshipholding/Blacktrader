@@ -36,7 +36,7 @@ export function oosZoneMetrics(series: SeriesWithStep[], params: LearnableParams
     for (const f of walkForwardFolds(s.candles.length, folds)) {
       const slice = s.candles.slice(f.test[0], f.test[1]);
       const startTime = s.candles[f.test[0] + Math.min(150, f.test[1] - f.test[0] - 1)]?.time ?? 0;
-      const r = backtestSeries({ ...s, candles: slice }, params, { step: s.step });
+      const r = backtestSeries({ ...s, candles: slice }, params, { step: s.step, rules: true });
       trades.push(...r.trades.filter((t) => t.entryTime >= startTime));
       for (const z of r.zones) if (z.t >= startTime && z.dir === 1) ok.push(z.ok);
       months += monthsOf(slice.slice(150));
