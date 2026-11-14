@@ -1,0 +1,106 @@
+symbol,name,quelle,ticker,erster_tag,letzter_tag,zeilen,waehrung_einheit,rollierend_bereinigt,hinweis
+Gold,Gold (COMEX),Yahoo Finance (yfinance),GC=F,2000-08-30,2026-11-13,6578,USD je Feinunze,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Silber,Silber (COMEX),Yahoo Finance (yfinance),SI=F,2000-08-30,2026-11-13,6579,USD je Feinunze,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Platin,Platin (NYMEX),Yahoo Finance (yfinance),PL=F,1997-10-29,2026-11-13,6605,USD je Feinunze,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Palladium,Palladium (NYMEX),Yahoo Finance (yfinance),PA=F,1998-09-28,2026-11-13,6616,USD je Feinunze,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Kupfer,Kupfer (COMEX),Yahoo Finance (yfinance),HG=F,2000-08-30,2026-11-13,6582,USD je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Aluminium,Aluminium (COMEX),Yahoo Finance (yfinance),ALI=F,2014-05-06,2026-11-13,3115,USD je Tonne,"nein – Front-Month verkettet, Sprünge am Rolltag",
+WTI_Oel,WTI_Oel (NYMEX),Yahoo Finance (yfinance),CL=F,2000-08-23,2026-11-13,6585,USD je Barrel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Brent_Oel,Brent_Oel (NYMEX),Yahoo Finance (yfinance),BZ=F,2007-07-30,2026-11-13,4804,USD je Barrel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Erdgas_HenryHub,Erdgas_HenryHub (NYMEX),Yahoo Finance (yfinance),NG=F,2000-08-30,2026-11-13,6583,USD je MMBtu,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Benzin_RBOB,Benzin_RBOB (NYMEX),Yahoo Finance (yfinance),RB=F,2000-11-01,2026-11-13,6541,USD je Gallone,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Heizoel,Heizoel (NYMEX),Yahoo Finance (yfinance),HO=F,2000-09-01,2026-11-13,6580,USD je Gallone,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Mais,Mais (CBOT),Yahoo Finance (yfinance),ZC=F,2000-07-17,2026-11-13,6589,US-Cent je Scheffel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Weizen,Weizen (CBOT),Yahoo Finance (yfinance),ZW=F,2000-07-17,2026-11-13,6601,US-Cent je Scheffel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Sojabohnen,Sojabohnen (CBOT),Yahoo Finance (yfinance),ZS=F,2000-09-15,2026-11-13,6581,US-Cent je Scheffel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Sojaoel,Sojaoel (CBOT),Yahoo Finance (yfinance),ZL=F,2000-03-15,2026-11-13,6630,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Sojaschrot,Sojaschrot (CBOT),Yahoo Finance (yfinance),ZM=F,2000-05-15,2026-11-13,6592,USD je Short-Ton,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Hafer,Hafer (CBOT),Yahoo Finance (yfinance),ZO=F,1999-09-14,2026-11-13,6668,US-Cent je Scheffel,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Reis,Reis (CBOT),Yahoo Finance (yfinance),ZR=F,1999-09-14,2026-11-13,6811,USD je Zentner (cwt),"nein – Front-Month verkettet, Sprünge am Rolltag",
+Kaffee,Kaffee (ICE US),Yahoo Finance (yfinance),KC=F,2000-01-03,2026-11-13,6737,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Zucker,Zucker (ICE US),Yahoo Finance (yfinance),SB=F,2000-03-01,2026-11-13,6700,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Kakao,Kakao (ICE US),Yahoo Finance (yfinance),CC=F,2000-01-03,2026-11-13,6739,USD je Tonne,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Baumwolle,Baumwolle (ICE US),Yahoo Finance (yfinance),CT=F,2000-01-03,2026-11-13,6739,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Orangensaft,Orangensaft (ICE US),Yahoo Finance (yfinance),OJ=F,2001-09-17,2026-11-13,6315,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Lebendrind,Lebendrind (CME),Yahoo Finance (yfinance),LE=F,2001-03-01,2026-11-13,6444,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Mastrind,Mastrind (CME),Yahoo Finance (yfinance),GF=F,2001-04-03,2026-11-13,6414,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Magerschwein,Magerschwein (CME),Yahoo Finance (yfinance),HE=F,2000-12-15,2026-11-13,6512,US-Cent je Pfund,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Holz,Holz (CME),Yahoo Finance (yfinance),LBR=F,2022-08-05,2026-11-13,1075,USD je 1000 Board-Fuß,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Milch_ClassIII,Milch_ClassIII (CME),Yahoo Finance (yfinance),DC=F,2006-04-25,2026-11-13,5067,USD je Zentner (cwt),"nein – Front-Month verkettet, Sprünge am Rolltag",
+Kohle_Rotterdam,Kohle_Rotterdam (ICE/NYMEX),Yahoo Finance (yfinance),MTF=F,2010-12-17,2025-12-26,3677,USD je Tonne,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Uran,Uran (COMEX),Yahoo Finance (yfinance),UX=F,,,0,USD je Pfund U3O8,"nein – Front-Month verkettet, Sprünge am Rolltag",keine Daten erhalten
+Eisenerz_62Fe,Eisenerz_62Fe (COMEX),Yahoo Finance (yfinance),TIO=F,2010-10-14,2026-11-13,4033,USD je Tonne,"nein – Front-Month verkettet, Sprünge am Rolltag",
+Ethanol,Ethanol (NYMEX),Yahoo Finance (yfinance),CU=F,,,0,USD je Gallone,"nein – Front-Month verkettet, Sprünge am Rolltag",keine Daten erhalten
+Gold_Spot,Gold_Spot,Yahoo Finance (yfinance),XAUUSD=X,,,0,USD je Feinunze,entfällt (Spotpreis),kein STOOQ_APIKEY gesetzt
+Silber_Spot,Silber_Spot,Yahoo Finance (yfinance),XAGUSD=X,,,0,USD je Feinunze,entfällt (Spotpreis),kein STOOQ_APIKEY gesetzt
+BTC,BTC,Bitstamp,btcusd,2011-08-18,2026-11-13,5534,USD,entfällt,weitere: Yahoo Finance ab 2014-09-17
+ETH,ETH,Bitstamp,ethusd,2017-08-16,2026-11-13,3377,USD,entfällt,weitere: Yahoo Finance ab 2017-11-09
+XRP,XRP,Bitstamp,xrpusd,2016-12-16,2026-11-13,3593,USD,entfällt,weitere: Yahoo Finance ab 2017-11-09
+LTC,LTC,Yahoo Finance,LTC-USD,2014-09-17,2026-11-14,4442,USD,entfällt,weitere: Bitstamp ab 2017-06-16
+XLM,XLM,Yahoo Finance,XLM-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2020-05-28
+DOGE,DOGE,Yahoo Finance,DOGE-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2022-12-21
+DASH,DASH,Yahoo Finance,DASH-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+XMR,XMR,Yahoo Finance,XMR-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+ETC,ETC,Yahoo Finance,ETC-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2025-07-08
+ZEC,ZEC,Yahoo Finance,ZEC-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2026-03-19
+BCH,BCH,Yahoo Finance,BCH-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2017-12-04
+ADA,ADA,Yahoo Finance,ADA-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2021-11-17
+TRX,TRX,Yahoo Finance,TRX-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2026-02-10
+BNB,BNB,Yahoo Finance,BNB-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2025-12-16
+EOS,EOS,Yahoo Finance,EOS-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+NEO,NEO,Yahoo Finance,NEO-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+IOTA,IOTA,Yahoo Finance,IOTA-USD,2023-09-30,2026-11-14,1142,USD,entfällt,
+LINK,LINK,Yahoo Finance,LINK-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2020-10-19
+VET,VET,Yahoo Finance,VET-USD,2018-08-03,2026-11-14,3026,USD,entfällt,
+QTUM,QTUM,Yahoo Finance,QTUM-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+XTZ,XTZ,Yahoo Finance,XTZ-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2026-03-19
+ATOM,ATOM,Yahoo Finance,ATOM-USD,2019-03-14,2026-11-14,2803,USD,entfällt,weitere: Bitstamp ab 2026-01-21
+ALGO,ALGO,Yahoo Finance,ALGO-USD,2019-06-21,2026-11-14,2704,USD,entfällt,weitere: Bitstamp ab 2021-05-13
+DOT,DOT,Yahoo Finance,DOT-USD,2020-08-20,2026-11-14,2278,USD,entfällt,weitere: Bitstamp ab 2022-08-18
+SOL,SOL,Yahoo Finance,SOL-USD,2020-04-10,2026-11-14,2410,USD,entfällt,weitere: Bitstamp ab 2022-08-18
+AVAX,AVAX,Yahoo Finance,AVAX-USD,2020-07-13,2026-11-14,2247,USD,entfällt,weitere: Bitstamp ab 2022-03-08
+UNI,UNI,Yahoo Finance,UNI7083-USD,2020-09-18,2026-11-14,2249,USD,entfällt,weitere: Bitstamp ab 2021-05-04
+BSV,BSV,Yahoo Finance,BSV-USD,2018-11-09,2026-11-14,2928,USD,entfällt,
+XEM,XEM,Yahoo Finance,XEM-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+WAVES,WAVES,Yahoo Finance,WAVES-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+DCR,DCR,Yahoo Finance,DCR-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+DGB,DGB,Yahoo Finance,DGB-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+SC,SC,Yahoo Finance,SC-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+ZIL,ZIL,Yahoo Finance,ZIL-USD,2018-01-25,2026-11-14,3216,USD,entfällt,
+ICX,ICX,Yahoo Finance,ICX-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+ONT,ONT,Yahoo Finance,ONT-USD,2018-03-08,2026-11-14,3174,USD,entfällt,
+BAT,BAT,Yahoo Finance,BAT-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2021-04-16
+ZRX,ZRX,Yahoo Finance,ZRX-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2021-02-18
+OMG,OMG,Yahoo Finance,OMG-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+LSK,LSK,Yahoo Finance,LSK-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+STEEM,STEEM,Yahoo Finance,STEEM-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+XVG,XVG,Yahoo Finance,XVG-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+RVN,RVN,Yahoo Finance,RVN-USD,2018-03-10,2026-11-14,3172,USD,entfällt,
+NANO,NANO,Yahoo Finance,XNO-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+HBAR,HBAR,Yahoo Finance,HBAR-USD,2019-09-17,2026-11-14,2616,USD,entfällt,weitere: Bitstamp ab 2021-10-07
+THETA,THETA,Yahoo Finance,THETA-USD,2018-01-17,2026-11-14,3224,USD,entfällt,
+MKR,MKR,Yahoo Finance,MKR-USD,2017-11-20,2026-11-14,3282,USD,entfällt,
+SNX,SNX,Yahoo Finance,SNX-USD,2018-03-14,2026-11-14,3168,USD,entfällt,weitere: Bitstamp ab 2021-05-06
+AAVE,AAVE,Yahoo Finance,AAVE-USD,2020-10-02,2026-11-14,2235,USD,entfällt,weitere: Bitstamp ab 2021-04-16
+COMP,COMP,Yahoo Finance,COMP5692-USD,2020-06-17,2026-11-14,2342,USD,entfällt,weitere: Bitstamp ab 2021-06-10
+YFI,YFI,Yahoo Finance,YFI-USD,2020-07-20,2026-11-14,2309,USD,entfällt,
+KSM,KSM,Yahoo Finance,KSM-USD,2019-12-12,2026-11-14,2530,USD,entfällt,
+FIL,FIL,Yahoo Finance,FIL-USD,2017-12-13,2026-11-14,3259,USD,entfällt,
+NEAR,NEAR,Yahoo Finance,NEAR-USD,2020-10-14,2026-11-14,2223,USD,entfällt,weitere: Bitstamp ab 2022-09-01
+CRO,CRO,Yahoo Finance,CRO-USD,2018-12-14,2026-11-14,2893,USD,entfällt,
+LEO,LEO,Yahoo Finance,LEO-USD,2019-05-21,2026-11-14,2735,USD,entfällt,
+OKB,OKB,Yahoo Finance,OKB-USD,2019-04-30,2026-11-14,2756,USD,entfällt,
+KCS,KCS,Yahoo Finance,KCS-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+HT,HT,Yahoo Finance,HT-USD,2018-02-03,2026-11-14,3207,USD,entfällt,
+ENJ,ENJ,Yahoo Finance,ENJ-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
+MANA,MANA,Yahoo Finance,MANA-USD,2017-11-09,2026-11-14,3293,USD,entfällt,weitere: Bitstamp ab 2022-06-03
+CHZ,CHZ,Yahoo Finance,CHZ-USD,2019-07-01,2026-11-14,2694,USD,entfällt,weitere: Bitstamp ab 2021-08-19
+ONE,ONE,Yahoo Finance,ONE-USD,2017-12-31,2026-11-14,2808,USD,entfällt,
+FTM,FTM,-,,,,0,USD,entfällt,keine Daten erhalten
+MATIC,MATIC,-,,,,0,USD,entfällt,keine Daten erhalten
+EGLD,EGLD,Yahoo Finance,EGLD-USD,2020-09-04,2026-11-14,2263,USD,entfällt,
+XDC,XDC,Yahoo Finance,XDC-USD,2018-04-13,2026-11-14,3138,USD,entfällt,weitere: Bitstamp ab 2024-08-05
+QNT,QNT,Yahoo Finance,QNT-USD,2018-08-10,2026-11-14,3019,USD,entfällt,weitere: Bitstamp ab 2026-04-23
+KAVA,KAVA,Yahoo Finance,KAVA-USD,2019-10-25,2026-11-14,2578,USD,entfällt,
+CELO,CELO,Yahoo Finance,CELO-USD,2020-05-22,2026-11-14,2368,USD,entfällt,
+BTG,BTG,Yahoo Finance,BTG-USD,2017-11-09,2026-11-14,3293,USD,entfällt,
