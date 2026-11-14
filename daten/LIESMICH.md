@@ -11,3 +11,10 @@ Nur Daten – kein App-Code. Erstellt am 14.11.2026 aus öffentlichen Datensätz
 | `SP500_Dividenden_alle_Firmen.xlsx` | Dieselben Dividenden als Excel: Übersicht je Firma, Jahressummen, alle Zahlungen, Info. |
 
 Grenzen: nur heutige Indexmitglieder (Überlebens-Verzerrung); Abspaltungen sind bei Yahoo teils als Kurslücke/Dividende enthalten (z. B. DHR 05.07.2016).
+
+## Rohstoffe und Krypto (Ordner `rohstoffe-krypto/`)
+
+Noch keine Kursdateien, sondern das Download-Skript `kursdaten_download.py` und die Quellenübersicht `LIESMICH.md`
+(32 Rohstoff-Futures + Gold-/Silber-Spot, 71 Coins; Spalten date, open, high, low, close, volume).
+Die Kursquellen (Yahoo, stooq, Bitstamp, CryptoCompare, Kraken) sind aus der Cloud-Umgebung gesperrt –
+das Skript muss auf einem Rechner mit Internet laufen. Ergebnisse danach in diesen Ordner legen.
