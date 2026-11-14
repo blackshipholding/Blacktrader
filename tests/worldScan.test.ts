@@ -56,5 +56,10 @@ describe("Welt-Suche läuft durch", () => {
     const n = W.getWorldLog().length;
     await W.runWorldScan(false);
     expect(W.getWorldLog().length).toBe(n);
+    // „Live-Bilanz löschen“ räumt auch die Welt-Messung ab
+    W.clearWorldLog();
+    expect(W.getWorldLog()).toEqual([]);
+    expect(mem.get("bt-world-log-v1")).toBeUndefined();
+    expect(mem.get("bt-world-scan-v1")).toBeUndefined();
   }, 60000);
 });

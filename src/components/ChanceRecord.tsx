@@ -4,6 +4,7 @@ import { useState } from "react";
 import { chanceStats } from "@/lib/client/chanceLog";
 import { LIVE_CHECK, liveCheck } from "@/lib/client/liveCheck";
 import { actions, useAppData } from "@/lib/store/store";
+import { clearWorldLog } from "@/lib/client/worldScan";
 
 export function ChanceRecord() {
   const log = useAppData((d) => d.chanceLog);
@@ -50,7 +51,10 @@ export function ChanceRecord() {
             className="btn-danger mt-2 w-full"
             onClick={(e) => {
               e.stopPropagation();
-              if (window.confirm("Live-Bilanz löschen und neu beginnen? Was Blacktrader gelernt hat, bleibt erhalten.")) actions.setChanceLog([]);
+              if (window.confirm("Live-Bilanz löschen und neu beginnen? Was Blacktrader gelernt hat, bleibt erhalten.")) {
+                actions.setChanceLog([]);
+                clearWorldLog(); // auch die Welt-Messung beginnt neu
+              }
             }}
           >
             Live-Bilanz löschen

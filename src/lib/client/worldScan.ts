@@ -67,6 +67,17 @@ const saveLog = (l: WorldEntry[]) => {
   wr(LOG_KEY, l);
   emit();
 };
+/** Welt-Liste und Fortschritt löschen (wird zusammen mit „Live-Bilanz löschen“ aufgerufen, Nutzer 14.11.2026) */
+export function clearWorldLog() {
+  cache = [];
+  try {
+    localStorage.removeItem(LOG_KEY);
+    localStorage.removeItem(PROG_KEY);
+  } catch {
+    /* ohne Speicher */
+  }
+  emit();
+}
 export const useWorldLog = (): WorldEntry[] =>
   useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), getWorldLog, () => []);
 export const useWorldBusy = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => busy, () => busy);
