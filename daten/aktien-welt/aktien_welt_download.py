@@ -43,10 +43,27 @@ def wiki_liste(url, mn, mx):
     raise RuntimeError(f"Mitglieder-Tabelle nicht gefunden: {url}")
 
 
+APP_LISTEN = {"Aktien_Europa": "STOCKS_EU_WIDE", "Aktien_Asien_Pazifik": "STOCKS_ASIA_WIDE"}
+
+
+def app_liste(gruppe):
+    """Ohne trainer_werte.csv: dieselbe Liste direkt aus der App (src/lib/trainer/universe.ts)."""
+    for p in ("Blacktrader/src/lib/trainer/universe.ts", "/content/Blacktrader/src/lib/trainer/universe.ts",
+              os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src/lib/trainer/universe.ts")):
+        if os.path.exists(p):
+            s = open(p, encoding="utf-8").read()
+            b = s[s.index("export const " + APP_LISTEN[gruppe]):]
+            b = b[:b.index("];")]
+            t = re.findall(r'"([^"]+)"', b)
+            print(f"trainer_werte.csv nicht da - nehme die Liste aus der App ({len(t)} Ticker)")
+            return [(x, "") for x in t]
+    raise FileNotFoundError("trainer_werte.csv fehlt - bitte ueber das Ordner-Symbol hochladen")
+
+
 def csv_liste(gruppe):
     pfad = CSV_DATEI if os.path.exists(CSV_DATEI) else "/content/" + CSV_DATEI
     if not os.path.exists(pfad):
-        raise FileNotFoundError("trainer_werte.csv fehlt - bitte ueber das Ordner-Symbol hochladen")
+        return app_liste(gruppe)
     w = pd.read_csv(pfad)
     w.columns = [c.strip() for c in w.columns]
     t = w[w["gruppe"].astype(str).str.strip() == gruppe]["yahoo_ticker"].astype(str).str.strip()
