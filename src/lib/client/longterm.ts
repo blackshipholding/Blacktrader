@@ -2,6 +2,7 @@
 // Langfrist-Positionen (blau) als Papier-Trades: Einstieg in drei Teilen, kein fester Stop.
 // Teilausstieg / Stop / Ausstieg NUR, wenn Blacktrader eine geänderte Zählung meldet (assessLongTerm) –
 // und erst, wenn der Nutzer den Vorschlag bei flatex umgesetzt und bestätigt hat (wie bei flatex selbst).
+import { shipLabel } from "./shipVersion";
 import { fillShares, makeOrderSlip, OVER_SHARE } from "./orderSlip";
 import { toEurReturn, tradeCurrency } from "./eur";
 import { eurPerUnit } from "../fx";
@@ -203,7 +204,7 @@ export function shipmasterProtect(t: Trade, price: number): LongTermAction | nul
     kind: "stop",
     key,
     stop: t.lt.zoneTop,
-    reason: `Shipmaster 0.2: Kurs ${up.toFixed(0)} % über deinem Einstieg und über der blauen Zone – Stop-Loss auf die Oberkante ${money(t.lt.zoneTop, tradeCurrency(t))} sichert den Gewinn (ab +${Math.round(sp.gain * 100)} %).`,
+    reason: `${shipLabel()}: Kurs ${up.toFixed(0)} % über deinem Einstieg und über der blauen Zone – Stop-Loss auf die Oberkante ${money(t.lt.zoneTop, tradeCurrency(t))} sichert den Gewinn (ab +${Math.round(sp.gain * 100)} %).`,
   };
 }
 
@@ -227,7 +228,7 @@ export function shipmasterTrail(t: Trade, candles: Candle[], now = Date.now()): 
     kind: "stop",
     key: `trail:${t.lt.key}:${last.time}`,
     stop: ns,
-    reason: `Shipmaster 0.2 – Wochenkerze fertig: Stop ${ns > t.stop ? "nachziehen" : "zurück Richtung Oberkante"} von ${money(t.stop, cur)} auf ${money(ns, cur)} (nie unter die Oberkante ${money(t.lt.zoneTop, cur)}).`,
+    reason: `${shipLabel()} – Wochenkerze fertig: Stop ${ns > t.stop ? "nachziehen" : "zurück Richtung Oberkante"} von ${money(t.stop, cur)} auf ${money(ns, cur)} (nie unter die Oberkante ${money(t.lt.zoneTop, cur)}).`,
   };
 }
 

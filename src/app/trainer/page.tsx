@@ -14,7 +14,7 @@ import { HORIZON_RANK } from "@/lib/analysis/bestEntry";
 import { allHistories } from "@/lib/client/entries";
 import { refreshTrainerParams, useTrainerCells } from "@/lib/client/trainerParams";
 import { initVersionsSeen, newVersions } from "@/lib/client/versionNotice";
-import { adoptProposal, discardProposal, loadReports, retestProposals, startTraining, stopRetest, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
+import { loadReports, retestProposals, startTraining, stopRetest, stopTraining, TOKEN_KEY, useTraining } from "@/lib/client/trainingSession";
 import { dueForRetest, isActive, passDays, REQUIRED_DAYS, useProposals, type Proposal } from "@/lib/client/proposals";
 import { primaryCount, primaryRate, TARGET_HIT_RATE } from "@/lib/trainer/engine";
 import { goalProgress, goalReached } from "@/lib/trainer/goal";
@@ -448,12 +448,11 @@ function LiveControl() {
 }
 
 
-const STATUS_TEXT: Record<Proposal["status"], string> = { testing: "wird geprüft", ready: "bereit – deine Entscheidung", rejected: "durchgefallen", adopted: "eingebaut", discarded: "verworfen" };
+const STATUS_TEXT: Record<Proposal["status"], string> = { testing: "wird geprüft", ready: "bestanden – wartet auf die Live-Messung", trial: "läuft in der Live-Bilanz", rejected: "durchgefallen", adopted: "übernommen", discarded: "verworfen" };
 
 /** Bessere Varianten des Trainers: erst nachprüfen an mehreren Tagen, dann entscheidest du (Nutzer 13.11.2026) */
 function ProposalsCard({ retest }: { retest: { running: boolean; text: string } }) {
   const list = useProposals();
-  const [msg, setMsg] = useState<Record<string, string>>({});
   const shown = [...list].filter((p) => isActive(p) || p.status === "rejected" || p.status === "adopted").slice(-8).reverse();
   const due = dueForRetest().length;
   if (!shown.length && !retest.running) return null;
@@ -470,10 +469,10 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
         </>
       )}
       {shown.map((p) => (
-        <div key={p.id} className={`rounded-xl border p-3 text-[14px] ${p.status === "ready" ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
+        <div key={p.id} className={`rounded-xl border p-3 text-[14px] ${p.status === "trial" ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
           <div className="flex items-start justify-between gap-2">
             <span className="font-medium text-stone-100">{cellLabel(p.cell)}</span>
-            <span className={p.status === "ready" ? "text-emerald-300" : p.status === "rejected" ? "text-red-300" : "text-stone-300"}>{STATUS_TEXT[p.status]}</span>
+            <span className={p.status === "trial" ? "text-emerald-300" : p.status === "rejected" ? "text-red-300" : "text-stone-300"}>{STATUS_TEXT[p.status]}</span>
           </div>
           <div className="mt-1 text-stone-300">{p.changes}</div>
           {/* Vorher / Nachher auf den unbekannten Prüfdaten beim Fund (Nutzer 13.11.2026) */}
@@ -496,23 +495,6 @@ function ProposalsCard({ retest }: { retest: { running: boolean; text: string } 
             ))}
           </div>
           <div className="num mt-1 text-stone-400">Tage bestanden {passDays(p)}/{REQUIRED_DAYS}</div>
-          {p.status === "ready" && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button
-                className="btn-primary"
-                onClick={async () => {
-                  const r = await adoptProposal(p.id);
-                  setMsg((m) => ({ ...m, [p.id]: r }));
-                }}
-              >
-                Einbauen
-              </button>
-              <button className="btn" onClick={() => discardProposal(p.id)}>
-                Verwerfen
-              </button>
-            </div>
-          )}
-          {msg[p.id] && <div className="mt-1 text-amber-200">{msg[p.id]}</div>}
         </div>
       ))}
       {due > 0 && !retest.running && (

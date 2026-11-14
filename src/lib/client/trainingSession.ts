@@ -16,6 +16,8 @@ import type { StopParams } from "../analysis/longterm";
 import { getStopParams, saveStopParams } from "./stopParams";
 import { addProposal, dueForRetest, getProposals, passDays, recordCheck, REQUIRED_DAYS, setStatus, todayKey } from "./proposals";
 import { notify } from "./alerts";
+import { archiveOldLog, endTrial, getOldLog, getTrial, overlayParams, startTrial, type Trial } from "./trialState";
+import { nextVersion, setShipVersion, shipVersion } from "./shipVersion";
 
 const KEY = "bsh-training-session";
 const MSG_KEY = "bsh-training-messages";
@@ -242,7 +244,9 @@ export async function loadReports() {
 export async function startTraining(durationMs: number, cells: CellKey[] = [...ACTIVE_CELL_KEYS]) {
   if (view.running) return;
   await refreshTrainerParams(true);
-  const { version, params } = trainerParamSet();
+  const { version, params: official } = trainerParamSet();
+  // Läuft eine Messung der neuen Variante, bleibt sie der Ausgangspunkt des Trainings (bis du in der Live-Bilanz entschieden hast)
+  const params = overlayParams(official);
   const d = getData();
   const extra = [...SCAN_PRESETS, ...d.watchlist].map((a) => ({ symbol: a.symbol, kind: a.kind, yahooSymbol: a.yahooSymbol }));
   const { newSession } = await import("../trainer/session");
@@ -274,7 +278,7 @@ export async function retestProposals(): Promise<void> {
   const due = dueForRetest(day);
   if (!due.length) return;
   await refreshTrainerParams(true);
-  const { params } = trainerParamSet();
+  const params = overlayParams(trainerParamSet().params);
   const { resolveParams } = await import("../analysis/params");
   const d = getData();
   const extra = [...SCAN_PRESETS, ...d.watchlist].map((a) => ({ symbol: a.symbol, kind: a.kind, yahooSymbol: a.yahooSymbol }));
@@ -297,10 +301,7 @@ export async function retestProposals(): Promise<void> {
     if (m.type === "retestProgress") emit({ retest: { running: true, text: m.text ?? "" } });
     else if (m.type === "retestResult" && m.id && m.day && !m.skipped) {
       const p = recordCheck(m.id, { day: m.day, pass: !!m.pass, note: m.note ?? "" });
-      if (p?.status === "ready") {
-        const text = `Der Trainer hat eine bessere Einstellung gefunden und sie an ${REQUIRED_DAYS} verschiedenen Tagen bestätigt (${p.changes}). Im Trainer kannst du sie einbauen oder verwerfen.`;
-        void notify("Trainer: bessere Variante bereit", text, { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
-      }
+      if (p?.status === "ready") tryStartTrial();
     } else if (m.type === "retestDone") end();
   };
   w.onerror = end;
@@ -309,21 +310,54 @@ export async function retestProposals(): Promise<void> {
   w.postMessage({ type: "retest", day, paramSet: params, extra, champions, proposals });
 }
 
-/** Vorschlag einbauen (nur auf deinen Knopfdruck, nur wenn alle Tage bestanden). Gibt eine Meldung für die Anzeige zurück. */
-export async function adoptProposal(id: string): Promise<string> {
-  const p = getProposals().find((x) => x.id === id);
-  if (!p || p.status !== "ready") return "Dieser Vorschlag ist nicht mehr bereit.";
-  await refreshTrainerParams(true);
-  const { params } = trainerParamSet();
-  const { resolveParams } = await import("../analysis/params");
-  const [k, h] = p.cell.split(":") as [never, never];
-  const r: WFResult = { base: p.base, cand: p.cand, decision: { accept: true, reasons: [] }, deployed: p.deployed, changes: p.changes, improved: true };
-  const out = await saveImprovement(p.cell, r, resolveParams(params, k, h));
-  if (out.ok) {
-    setStatus(id, "adopted", out.message);
-    return out.message || "Eingebaut.";
+/**
+ * Bestandene Vorschläge (je Zelle der jüngste) starten die Messung in der Live-Bilanz – falls nicht schon eine läuft.
+ * Nutzer 14.11.2026: kein „Einbauen“-Vorschlag mehr; die Live-Bilanz fragt nach 100 Ergebnissen.
+ */
+export function tryStartTrial(): void {
+  if (getTrial()) return; // eine Messung läuft – weitere bestandene Varianten warten
+  const ready = getProposals().filter((x) => x.status === "ready");
+  if (!ready.length) return;
+  const cells: Trial["cells"] = {};
+  for (const p of ready) cells[p.cell] = { params: p.deployed, baseParams: p.baseParams, base: p.base, cand: p.cand, changes: p.changes };
+  startTrial(cells, shipVersion());
+  for (const p of ready) setStatus(p.id, "trial", "läuft in der Live-Bilanz");
+  const d = getData();
+  void notify("Neue Variante läuft", "Der Trainer hat eine bessere Variante gefunden. Sie wird jetzt in der Live-Bilanz gemessen (100 Ergebnisse), danach fragt dich die Live-Bilanz.", { sound: d.settings.sound, notifications: d.settings.notifications, kind: "info" });
+}
+
+/**
+ * Entscheidung in der Live-Bilanz nach 100 Ergebnissen. Ja: die neue Variante wird offiziell (Nummer +0,1, überall), die bisherige Live-Bilanz wird archiviert.
+ * Nein: die bisherige Variante bleibt, ihre Live-Bilanz kommt zurück. Gibt eine Meldung zurück.
+ */
+export async function decideTrial(yes: boolean): Promise<string> {
+  const t = getTrial();
+  if (!t) return "";
+  if (!yes) {
+    endTrial(true);
+    // Alles, was auf der abgelehnten Variante aufbaute, ist hinfällig
+    for (const p of getProposals()) if (p.status === "trial" || p.status === "ready" || p.status === "testing") setStatus(p.id, "discarded", "neue Variante in der Live-Bilanz abgelehnt");
+    return "Die bisherige Variante bleibt.";
   }
-  return `Konnte nicht eingebaut werden${out.message ? `: ${out.message}` : " (die Regeln – z. B. kleine Schritte – lassen es nicht zu)"}. Der Vorschlag bleibt bereit.`;
+  await refreshTrainerParams(true);
+  const { resolveParams } = await import("../analysis/params");
+  const { params } = trainerParamSet(); // OFFIZIELLER Stand (ohne Überlagerung)
+  const failed: string[] = [];
+  for (const [cell, c] of Object.entries(t.cells) as [CellKey, NonNullable<Trial["cells"][CellKey]>][]) {
+    const [k, h] = cell.split(":") as [never, never];
+    const r: WFResult = { base: c.base, cand: c.cand, decision: { accept: true, reasons: [] }, deployed: c.params, changes: c.changes, improved: true };
+    const out = await saveImprovement(cell, r, resolveParams(params, k, h));
+    if (!out.ok) failed.push(`${cell}${out.message ? ` (${out.message})` : ""}`);
+  }
+  if (failed.length) return `Konnte nicht übernommen werden: ${failed.join(", ")}. Die Messung läuft weiter.`;
+  const next = nextVersion(shipVersion());
+  archiveOldLog(shipVersion());
+  setShipVersion(next);
+  endTrial(false);
+  for (const p of getProposals()) if (p.status === "trial") setStatus(p.id, "adopted", `jetzt Shipmaster ${next}`);
+  tryStartTrial(); // wartet schon die nächste bessere Variante?
+  setTimeout(() => typeof location !== "undefined" && location.reload(), 1500); // neue Nummer überall anzeigen
+  return `Übernommen: Shipmaster ${next}.`;
 }
 
 /** Nachprüfung abbrechen (fertig geprüfte Vorschläge bleiben gespeichert, der unfertige wird beim nächsten Start neu gerechnet) */
@@ -331,7 +365,6 @@ export function stopRetest() {
   rworker?.postMessage({ type: "stop" });
 }
 
-export const discardProposal = (id: string) => setStatus(id, "discarded", "von dir verworfen");
 
 export function stopTraining() {
   rworker?.postMessage({ type: "stop" });

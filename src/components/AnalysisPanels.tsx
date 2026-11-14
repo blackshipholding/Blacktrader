@@ -1,4 +1,5 @@
 "use client";
+import { shipLabel } from "@/lib/client/shipVersion";
 import { dividendPerShareEur, netOfTax } from "@/lib/client/dividends";
 import { useState } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -89,7 +90,7 @@ export function SignalCard({ a, onTrade, shortAllowed = true, main }: { a: Analy
       )}
       {/* Ohne onTrade (z. B. Kachel mit „übernehmen“ steht schon oben) kein zweiter Knopf */}
       {sell ? (
-        <p className="rounded-lg bg-red-500/10 p-2 text-center text-sm text-red-200">Nur Info – Blacktrader handelt keine Shorts (Shipmaster 0.2).</p>
+        <p className="rounded-lg bg-red-500/10 p-2 text-center text-sm text-red-200">Nur Info – Blacktrader handelt keine Shorts ({shipLabel()}).</p>
       ) : active ? (
         onTrade && <button className="btn-primary w-full" onClick={onTrade}>
           {a.plan!.orderType === "limit" ? "Order in die Zone legen (Papier-Trade)" : "Als Papier-Trade übernehmen"}

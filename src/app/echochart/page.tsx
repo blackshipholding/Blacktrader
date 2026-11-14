@@ -1,5 +1,6 @@
 "use client";
 // EchoChart: Hätte Blacktrader früher richtig gelegen? Einfach gehalten – eine große Zahl, ein Bild, Details zum Aufklappen.
+import { shipLabel } from "@/lib/client/shipVersion";
 import { useEffect, useMemo, useState } from "react";
 import { ZoneHistoryChart } from "@/components/ZoneHistoryChart";
 import { runEcho, summarize, type EchoKind, type EchoZone } from "@/lib/analysis/echoZones";
@@ -278,7 +279,7 @@ export default function EchoChartPage() {
           {single && single.candles.length > 0 && <ZoneHistoryChart candles={single.candles} zones={single.zones} />}
           {tradeHit != null && (
             <p className="text-center text-[13px] text-stone-400">
-              Trades nach Shipmaster 0.2 (Grün, Blau – keine Shorts): {pct(tradeHit)} im Gewinn{single?.tradeReturn != null ? ` · Ergebnis ${single.tradeReturn >= 0 ? "+" : ""}${single.tradeReturn.toFixed(1).replace(".", ",")} %` : ""}
+              Trades nach {shipLabel()} (Grün, Blau – keine Shorts): {pct(tradeHit)} im Gewinn{single?.tradeReturn != null ? ` · Ergebnis ${single.tradeReturn >= 0 ? "+" : ""}${single.tradeReturn.toFixed(1).replace(".", ",")} %` : ""}
             </p>
           )}
 
@@ -289,7 +290,7 @@ export default function EchoChartPage() {
           )}
           {acc && (
             <div className="rounded-xl border border-gold/30 bg-black/30 p-3 text-center">
-              <div className="text-[14px] text-stone-300">Mit {ACCOUNT.start.toLocaleString("de-DE")} € Start, 10 % je Kauf (Shipmaster 0.2, netto)</div>
+              <div className="text-[14px] text-stone-300">Mit {ACCOUNT.start.toLocaleString("de-DE")} € Start, 10 % je Kauf ({shipLabel()}, netto)</div>
               <div className={`num text-[30px] font-semibold leading-tight ${acc.profit >= 0 ? "text-up" : "text-down"}`}>
                 {acc.profitPct >= 0 ? "+" : ""}
                 {acc.profitPct.toFixed(1).replace(".", ",")} %
@@ -348,7 +349,7 @@ export default function EchoChartPage() {
           <details className="text-[13px] text-stone-400">
             <summary className="cursor-pointer">Wie wird gezählt?</summary>
             <p className="mt-1">
-              Trades und Konto nach denselben Regeln wie Chancen und Turnier (Shipmaster 0.2): keine Shorts, Sektor-Regel für Tech-Werte, Chance bis zum Ziel mindestens 15 %, nur die obere Hälfte nach Potenzial, Blau ohne Blau-Regel. Die Zonen-Quote oben zählt Kauf- und Langfrist-Zonen (Qualität der Zonen) – Short-Zonen nicht, weil Blacktrader keine Shorts handelt.{" "}
+              Trades und Konto nach denselben Regeln wie Chancen und Turnier ({shipLabel()}): keine Shorts, Sektor-Regel für Tech-Werte, Chance bis zum Ziel mindestens 15 %, nur die obere Hälfte nach Potenzial, Blau ohne Blau-Regel. Die Zonen-Quote oben zählt Kauf- und Langfrist-Zonen (Qualität der Zonen) – Short-Zonen nicht, weil Blacktrader keine Shorts handelt.{" "}
               Konto: {ACCOUNT.start.toLocaleString("de-DE")} € Start, 1. Kauf 10 % und Nachkauf (nur Blau) höchstens 2 × 2 % vom jeweiligen Kontostand (nur wenn genug Geld frei ist, je Wert eine Position), 7,90 € Gebühr je Order, 27,5 % KESt sofort auf Gewinne mit Verlustausgleich im selben Jahr – alles netto. Wechselkurs-Schwankungen sind hier nicht eingerechnet.{" "}
               Wie bei HKCM: Eine Zone hat gehalten, wenn der Kurs hineinläuft, vor der Unterkante dreht und oben wieder herausläuft. Fällt er vorher unter die Unterkante, ist sie gescheitert. Zonen, die der Kurs nie erreicht hat, zählen nicht. Blacktrader kennt dabei immer nur die Kurse bis zum jeweiligen Tag. Gute Ergebnisse von früher sind keine Garantie für die Zukunft.
             </p>

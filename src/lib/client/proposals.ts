@@ -13,7 +13,8 @@ import { keyOf } from "../trainer/walkforward";
 export const REQUIRED_DAYS = 5;
 const KEY = "bt-trainer-proposals";
 
-export type ProposalStatus = "testing" | "ready" | "rejected" | "adopted" | "discarded";
+/** trial = läuft gerade als neue Variante in der Live-Bilanz (Messung), ready = bestanden, wartet auf die laufende Messung */
+export type ProposalStatus = "testing" | "ready" | "trial" | "rejected" | "adopted" | "discarded";
 export interface ProposalCheck {
   day: string;
   pass: boolean;
@@ -48,8 +49,8 @@ function load(): Proposal[] {
 }
 function save(list: Proposal[]) {
   // Abgeschlossene (verworfen/eingebaut/abgelehnt) nur begrenzt aufheben
-  const active = list.filter((p) => p.status === "testing" || p.status === "ready");
-  const done = list.filter((p) => !(p.status === "testing" || p.status === "ready")).slice(-12);
+  const active = list.filter(isActive);
+  const done = list.filter((p) => !isActive(p)).slice(-12);
   cache = [...done, ...active];
   try {
     localStorage.setItem(KEY, JSON.stringify(cache));
@@ -68,7 +69,7 @@ export const useProposals = (): Proposal[] =>
   );
 
 export const todayKey = (now = new Date()) => now.toISOString().slice(0, 10);
-export const isActive = (p: Proposal) => p.status === "testing" || p.status === "ready";
+export const isActive = (p: Proposal) => p.status === "testing" || p.status === "ready" || p.status === "trial";
 export const passDays = (p: Proposal) => new Set(p.checks.filter((c) => c.pass).map((c) => c.day)).size;
 
 /** Neuen Vorschlag merken (ersetzt einen noch aktiven Vorschlag derselben Zelle) */
@@ -77,7 +78,7 @@ export function addProposal(cell: CellKey, p: { baseParams: LearnableParams; dep
   const k = keyOf(p.deployed);
   const same = list.find((x) => x.cell === cell && isActive(x) && keyOf(x.deployed) === k);
   if (same) return null;
-  const rest = list.map((x) => (x.cell === cell && isActive(x) ? { ...x, status: "discarded" as const, note: "durch neueren Vorschlag ersetzt" } : x));
+  const rest = list.map((x) => (x.cell === cell && (x.status === "testing" || x.status === "ready") ? { ...x, status: "discarded" as const, note: "durch neueren Vorschlag ersetzt" } : x));
   const fresh: Proposal = { id: `${now.getTime()}-${cell}`, cell, ...p, foundAt: now.toISOString(), checks: [], status: "testing" };
   save([...rest, fresh]);
   return fresh;

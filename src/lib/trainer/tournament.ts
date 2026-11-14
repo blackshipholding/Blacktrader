@@ -11,6 +11,7 @@
 // Wer kein Geld mehr für einen Trade hat und keine offene Position hält, scheidet aus.
 // 50 Versuche mit verschiedenen Startzeitpunkten – für alle Teilnehmer dieselben. Jeder Zeitraum wird nach der
 // Marktlage (S&P 500) als bullisch, neutral, bärisch oder gemischt eingeordnet. Gewertet wird der Durchschnitt.
+import { shipLabel } from "../client/shipVersion";
 import { KestYear } from "../analysis/kest";
 import { sma } from "../analysis/indicators";
 import type { Candle } from "../types";
@@ -484,7 +485,7 @@ export function reportItems(rep: TournamentReport, previous?: TournamentReport |
   }
   if (rep.hardtest) {
     const h = rep.hardtest;
-    out.push({ label: "Härtetest", value: `${pa(h.learn.avg)} · ${pct0(h.learn.lossShare)} Kunden mit Verlust`, text: `${h.customers.toLocaleString("de-DE")} Kunden (10.000 € – 1 Mio. €, Shipmaster 0.2) · bärisch ${pa(h.learn.bear)} · schlechteste 5 % ${pa(h.learn.worst5)}`, tone: h.learn.avg > 0 ? "good" : "warn" });
+    out.push({ label: "Härtetest", value: `${pa(h.learn.avg)} · ${pct0(h.learn.lossShare)} Kunden mit Verlust`, text: `${h.customers.toLocaleString("de-DE")} Kunden (10.000 € – 1 Mio. €, ${shipLabel()}) · bärisch ${pa(h.learn.bear)} · schlechteste 5 % ${pa(h.learn.worst5)}`, tone: h.learn.avg > 0 ? "good" : "warn" });
     if (h.locked) out.push({ label: "Schlusskontrolle", value: pa(h.locked.avg), text: `gesperrte letzte 2 Jahre (beim Lernen nie gesehen) · ${pct0(h.locked.lossShare)} mit Verlust`, tone: h.locked.avg >= h.learn.avg - 0.03 ? "good" : "warn" });
   }
   if (rep.b7?.checked) out.push({ label: "Regelwerk B7", value: `${rep.b7.checked} geprüft · ${rep.b7.rejected} abgelehnt`, text: "neue Lern-Stände im Turnier (schlechter oder ausgeschieden = abgelehnt)" });

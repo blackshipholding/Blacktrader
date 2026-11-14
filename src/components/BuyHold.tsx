@@ -1,6 +1,7 @@
 "use client";
 // Buy & Hold: eigene Käufe von Aktien und ETFs. Eingabe: Datum, Preis je Stück (€), Stückzahl, Gebühr (Standard 7,90 €).
 // Verkauft wird nur, wenn du es eingibst. Kurs jetzt: Börsenkurs, in Euro umgerechnet.
+import { shipLabel } from "@/lib/client/shipVersion";
 import { runScan, useScan } from "@/lib/client/scanner";
 import { holdTrend } from "@/lib/client/holdingWatch";
 import { getStopParams } from "@/lib/client/stopParams";
@@ -80,7 +81,7 @@ function HoldCard({ h, price, value, open, onOpenPosition, onOpenAsset }: { h: H
   const tip = !!lt && last != null && s.avg > 0 && protectDue(last, s.avg, lt.zoneTop, gain);
   const notes: ReasonNote[] = [];
   if (holdTrend(e) === -1) notes.push({ tone: "red", text: "Großer Trend fallend (Wochenchart) – prüfe deine Position." });
-  if (tip && lt) notes.push({ tone: "blue", text: `Shipmaster 0.2 – Tipp: Kurs über der Zone und über +${Math.round(gain * 100)} % – Stop-Loss auf die Oberkante ${lt.zoneTop.toLocaleString("de-DE", { maximumFractionDigits: 2 })} ${h.currency ?? ""} erwägen.` });
+  if (tip && lt) notes.push({ tone: "blue", text: `${shipLabel()} – Tipp: Kurs über der Zone und über +${Math.round(gain * 100)} % – Stop-Loss auf die Oberkante ${lt.zoneTop.toLocaleString("de-DE", { maximumFractionDigits: 2 })} ${h.currency ?? ""} erwägen.` });
   return (
     <EntryTile
       asset={asset}

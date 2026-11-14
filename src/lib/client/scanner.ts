@@ -6,6 +6,7 @@ import { financeCheck } from "../analysis/finance";
 import { summarizeHolding } from "./holdings";
 import { checkHoldings } from "./holdingWatch";
 import { updateChanceLog, type ChanceCandidate } from "./chanceLog";
+import { getTrial, oldStore } from "./trialState";
 import { isFxPair } from "./eur";
 import { basePotential, BLUE_RULE, MIN_POTENTIAL, passesBlueRule, type PotentialColor } from "../analysis/potential";
 import { effectiveWeights, learnedParams, refreshTrainerParams } from "./trainerParams";
@@ -273,7 +274,12 @@ export async function runScan(maxAgeMs = 15 * 60e3) {
       // Neue Einträge nur aus der Chancen-Liste; Kerzen für alle Werte (damit eingetragene weiter geprüft werden)
       cands.push({ key: `${assetKey(e.asset)}|${b.key}${inTop.has(assetKey(e.asset)) ? "" : "|nur-pruefen"}`, symbol: e.asset.symbol, name: e.asset.name, kind: e.asset.kind, color: b.color, dir: "long", zoneTop: b.zoneTop, zoneBottom: b.zoneBottom, stop, target, candles });
     }
-    updateChanceLog(cands.filter((c) => !c.key.endsWith("|nur-pruefen")), undefined, cands);
+    // Läuft eine Variantenmessung, gehört die sichtbare Live-Bilanz der neuen Variante; die bisherige Variante läuft unsichtbar in ihrer eigenen Liste weiter
+    updateChanceLog(cands.filter((c) => !c.key.endsWith("|nur-pruefen")), undefined, cands, getTrial() ? oldStore() : undefined);
+    if (getTrial()) {
+      const items = [...byAsset.values()].map((e) => ({ asset: e.asset, full: e.full }));
+      void import("./trial").then((m) => m.afterScan(items, ctx)).catch(() => {});
+    }
   } catch {
     /* Bilanz beim nächsten Durchlauf */
   }

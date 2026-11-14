@@ -75,8 +75,17 @@ export function evaluateChance(e: ChanceLogEntry, candles: Candle[]): ChanceLogE
  * Nach jeder Suche: neue Chancen (aus der Liste) eintragen, offene mit den neuen Kerzen prüfen.
  * `check`: Kerzen aller Werte der Suche (auch solcher, die gerade nicht mehr in der Liste stehen).
  */
-export function updateChanceLog(cands: ChanceCandidate[], now = Math.floor(Date.now() / 1000), check: ChanceCandidate[] = cands) {
-  const log = [...getData().chanceLog];
+/** Wo die Liste liegt: Standard = Live-Bilanz der App; die „alte Variante“ während einer Variantenmessung liegt getrennt (client/trial.ts) */
+export interface LogStore {
+  get: () => ChanceLogEntry[];
+  set: (l: ChanceLogEntry[]) => void;
+  /** Warnung „Live-Bilanz deutlich schlechter“ erlauben (nur für die sichtbare Live-Bilanz) */
+  warn: boolean;
+}
+const APP_STORE: LogStore = { get: () => getData().chanceLog, set: (l) => actions.setChanceLog(l), warn: true };
+
+export function updateChanceLog(cands: ChanceCandidate[], now = Math.floor(Date.now() / 1000), check: ChanceCandidate[] = cands, store: LogStore = APP_STORE) {
+  const log = [...store.get()];
   const byKey = new Map(log.map((x, i) => [x.key, i]));
   let changed = false;
   for (const c of cands) {
@@ -116,8 +125,8 @@ export function updateChanceLog(cands: ChanceCandidate[], now = Math.floor(Date.
     }
   }
   if (changed) {
-    actions.setChanceLog(log);
-    warnIfWorse(log);
+    store.set(log);
+    if (store.warn) warnIfWorse(log);
   }
 }
 

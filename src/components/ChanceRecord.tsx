@@ -5,12 +5,17 @@ import { chanceStats } from "@/lib/client/chanceLog";
 import { LIVE_CHECK, liveCheck } from "@/lib/client/liveCheck";
 import { actions, useAppData } from "@/lib/store/store";
 import { clearWorldLog } from "@/lib/client/worldScan";
+import { doneCount, getOldLog, TRIAL_TARGET, trialReady, useTrial } from "@/lib/client/trialState";
+import { decideTrial } from "@/lib/client/trainingSession";
 
 export function ChanceRecord() {
   const log = useAppData((d) => d.chanceLog);
   const [open, setOpen] = useState(false);
+  const trial = useTrial();
+  const [note, setNote] = useState("");
   const s = chanceStats(log);
-  if (!s.total) return null;
+  if (!s.total && !trial) return null;
+  const ready = trialReady(trial, log);
   const chk = liveCheck(log);
   const pct = (x: number | null) => (x == null ? "–" : `${Math.round(x * 100)} %`);
   const rate = (r: number | null) => (r == null ? "–" : `${Math.round(r * 100)} %`);
@@ -22,6 +27,24 @@ export function ChanceRecord() {
         </span>
         <span className="num text-[15px] font-semibold text-gold-light">Treffer {rate(s.hitRate)}</span>
       </div>
+      {trial && <div className="mt-0.5 text-[13px] font-semibold text-emerald-300">Neue Variante · {Math.min(doneCount(log), TRIAL_TARGET)} von {TRIAL_TARGET} Ergebnissen</div>}
+      {ready && (
+        <div className="mt-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-2.5" onClick={(e) => e.stopPropagation()}>
+          <div className="text-[14px] font-semibold text-emerald-200">Neue Variante übernehmen?</div>
+          <div className="num mt-0.5 text-[13px] text-stone-300">
+            Neu {rate(s.hitRate)} ({s.ziel + s.stop}) · Bisher {rate(chanceStats(getOldLog()).hitRate)} ({chanceStats(getOldLog()).ziel + chanceStats(getOldLog()).stop})
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button className="btn-primary" onClick={async () => setNote(await decideTrial(true))}>
+              Ja
+            </button>
+            <button className="btn" onClick={async () => setNote(await decideTrial(false))}>
+              Nein
+            </button>
+          </div>
+        </div>
+      )}
+      {note && <div className="mt-1 text-[13px] text-amber-200">{note}</div>}
       <LiveStatus chk={chk} pct={pct} />
       <div className="num mt-0.5 text-[13px] text-stone-400">
         {s.total} Chancen · <span className="text-emerald-300">{s.ziel} Ziel</span> · <span className="text-red-300">{s.stop} Stop</span> · {s.verpasst} verpasst · {s.open} laufen
