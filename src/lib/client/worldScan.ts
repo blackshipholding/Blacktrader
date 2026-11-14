@@ -5,6 +5,7 @@
 // Es wird nichts gehandelt. Läuft höchstens einmal am Tag (App offen), in Etappen, und setzt nach einer Unterbrechung fort.
 import { useSyncExternalStore } from "react";
 import { analyze } from "../analysis/analyze";
+import { financeCheck } from "../analysis/finance";
 import { findLongTermZone } from "../analysis/longterm";
 import { pickBestEntry } from "../analysis/bestEntry";
 import type { Candle, Horizon, ResolvedAsset } from "../types";
@@ -29,7 +30,8 @@ const PARALLEL = 3;
 const PAUSE_MS = 250;
 const MAX_FAIL_SHARE = 0.5;
 
-export type WorldEntry = ChanceLogEntry & { region: WorldRegion };
+/** `fin`: Aktie mit geprüften Firmenzahlen („geprüft“) oder ohne verfügbare Daten („ohne Daten“) – zum späteren Auswerten */
+export type WorldEntry = ChanceLogEntry & { region: WorldRegion; fin?: "geprüft" | "ohne Daten" };
 export interface WorldProgress {
   day: string;
   /** Wo der Umlauf als Nächstes weitermacht */
@@ -129,6 +131,18 @@ async function scanOne(asset: ResolvedAsset, ctx: Awaited<ReturnType<typeof fetc
   if (best.color === "gelb" || best.color === "rot" || best.zoneTop == null || best.zoneBottom == null) return true;
   const entry = { asset: a, horizons, longterm: ltOk, ltHorizon: "long", ltCandles: ltOk ? weekly.slice(-150) : undefined, best, history: { past: [] }, daily } as unknown as ScanEntry;
   if (!isTopChance(entry) || potential(entry) == null) return true;
+  // Finanz-Prüfung wie in der normalen Suche, aber nur für die wenigen Werte, die tatsächlich eine Chance sind (1 Zusatz-Abruf je Chance):
+  // schwache Firmen (hohe Schulden und Geld verbrennen) kommen nicht in die Messung; ohne verfügbare Zahlen bleibt der Wert, wird aber vermerkt
+  let fin: WorldEntry["fin"];
+  if (a.kind === "stock") {
+    try {
+      const f = (await api.fundamentals(a)).fundamentals;
+      if (financeCheck(f).weak) return true;
+      fin = f ? "geprüft" : "ohne Daten";
+    } catch {
+      fin = "ohne Daten";
+    }
+  }
   const blue = best.color === "blau";
   const stop = blue ? best.invalidation : best.stop;
   const target = best.targets?.[0];
@@ -136,7 +150,7 @@ async function scanOne(asset: ResolvedAsset, ctx: Awaited<ReturnType<typeof fetc
   const ckey = `${key}|${best.key}`;
   if (log.some((x) => x.key === ckey) || add.some((x) => x.key === ckey)) return true;
   const now = Math.floor(Date.now() / 1000);
-  const fresh: WorldEntry = { key: ckey, symbol: a.symbol, name: a.name, kind: a.kind, color: best.color, dir: "long", zoneTop: best.zoneTop, zoneBottom: best.zoneBottom, stop, target, from: now, region: regionOf(a) };
+  const fresh: WorldEntry = { key: ckey, symbol: a.symbol, name: a.name, kind: a.kind, color: best.color, dir: "long", zoneTop: best.zoneTop, zoneBottom: best.zoneBottom, stop, target, from: now, region: regionOf(a), ...(fin ? { fin } : {}) };
   add.push(fresh);
   return true;
 }
