@@ -47,8 +47,8 @@ describe("Welt-Suche läuft durch", () => {
     }
     expect(JSON.stringify(getData().chanceLog)).toBe(before); // normale Live-Bilanz unberührt
     const prog = JSON.parse(mem.get("bt-world-scan-v1")!);
-    expect(prog.doneToday).toBe(10);
-    expect(prog.cursor).toBe(0); // 10 von 10 Werten: Umlauf einmal komplett, Zeiger wieder am Anfang
+    expect(prog.doneToday).toBe(3); // 30 % von 10 Werten
+    expect(prog.cursor).toBe(3);
     expect(W.worldScanOn()).toBe(true); // läuft automatisch wie die normale Suche
     // zweiter Lauf am selben Tag ohne force: nichts mehr
     const n = W.getWorldLog().length;

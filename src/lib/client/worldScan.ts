@@ -18,8 +18,11 @@ import { regionOf, worldAssets, type WorldRegion } from "./worldList";
 const LOG_KEY = "bt-world-log-v1";
 const PROG_KEY = "bt-world-scan-v1";
 const ON_KEY = "bt-world-scan-on";
-/** Höchstens so viele Werte pro Tag (Yahoo schonen): bei ~966 Werten dauert ein voller Umlauf rund 7 Tage */
-export const DAILY_MAX = 150;
+/** Anteil der Welt-Werte, die pro Tag angeschaut werden (Nutzer 13.11.2026: 30 %), verteilt über den Tag in kleinen Stücken */
+export const DAILY_SHARE = 0.3;
+/** Ein Stück = so viele Werte, danach Pause bis zum nächsten Stück (Yahoo schonen) */
+export const SLICE = 25;
+const SLICE_EVERY_MS = 40 * 60e3;
 const BATCH = 60;
 const PARALLEL = 3;
 /** Schutz für Yahoo: zwischen zwei Abfragen kurz warten; fällt mehr als die Hälfte einer Etappe aus (z. B. „zu viele Anfragen“), wird für heute abgebrochen */
@@ -138,12 +141,12 @@ async function scanOne(asset: ResolvedAsset, ctx: Awaited<ReturnType<typeof fetc
   return true;
 }
 
-/** Heutigen Teil der Welt-Suche starten (höchstens DAILY_MAX Werte, danach am nächsten Tag der nächste Teil). `force`: noch einen Teil heute. */
-export async function runWorldScan(force = false): Promise<void> {
+/** Ein Stück der Welt-Suche (höchstens `slice` Werte; Tagesgrenze = DAILY_SHARE aller Werte, danach am nächsten Tag weiter). `force`: auch über die Tagesgrenze hinaus. */
+export async function runWorldScan(force = false, slice = Infinity): Promise<void> {
   if (busy.running || typeof window === "undefined") return;
   const day = today();
   const all = worldAssets();
-  const quota = Math.min(DAILY_MAX, all.length);
+  const quota = Math.min(all.length, Math.ceil(all.length * DAILY_SHARE));
   let prog = rd<WorldProgress | null>(PROG_KEY, null) ?? { day, cursor: 0, doneToday: 0 };
   if (prog.day !== day) prog = { day, cursor: prog.cursor % all.length, doneToday: 0 };
   if (prog.doneToday >= quota && !force) return;
@@ -153,8 +156,9 @@ export async function runWorldScan(force = false): Promise<void> {
   try {
     await Promise.race([refreshTrainerParams(), new Promise((r) => setTimeout(r, 3000))]);
     const ctx = await fetchMarketContext();
-    while (prog.doneToday < quota) {
-      const n = Math.min(BATCH, quota - prog.doneToday);
+    let doneNow = 0;
+    while (prog.doneToday < quota && doneNow < slice) {
+      const n = Math.min(BATCH, quota - prog.doneToday, slice - doneNow);
       const batch = Array.from({ length: n }, (_, i) => all[(prog.cursor + i) % all.length]);
       const log = [...getWorldLog()];
       const add: WorldEntry[] = [];
@@ -169,6 +173,7 @@ export async function runWorldScan(force = false): Promise<void> {
       });
       saveLog([...log, ...add]);
       if (failed > batch.length * MAX_FAIL_SHARE) return; // Yahoo bremst oder kein Netz: nichts weiter, beim nächsten Mal an derselben Stelle
+      doneNow += n;
       prog = { day, cursor: (prog.cursor + n) % all.length, doneToday: prog.doneToday + n };
       wr(PROG_KEY, prog);
       busy = { running: true, text: `Welt-Suche ${prog.doneToday}/${quota}` };
@@ -181,11 +186,18 @@ export async function runWorldScan(force = false): Promise<void> {
   }
 }
 
-/** Beim App-Start: einmal am Tag, nach kurzer Wartezeit */
+/** Über den Tag verteilt: erstes Stück 3 Minuten nach dem App-Start, dann alle 40 Minuten ein Stück, solange die App sichtbar ist */
 export function startWorldScan(): () => void {
   if (typeof window === "undefined") return () => {};
-  const t = setTimeout(() => {
-    if (worldScanOn()) void runWorldScan(false);
-  }, 180e3);
-  return () => clearTimeout(t);
+  const tick = () => {
+    if (!worldScanOn()) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    void runWorldScan(false, SLICE);
+  };
+  const first = setTimeout(tick, 180e3);
+  const every = setInterval(tick, SLICE_EVERY_MS);
+  return () => {
+    clearTimeout(first);
+    clearInterval(every);
+  };
 }
